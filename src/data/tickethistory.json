@@ -1,45 +1,25 @@
 [
   {
     "id": "T-1001",
-    "title": "Tastatur funktioniert nicht!",
-    "description": "sofort beheben",
-    "status": "closed",
+    "title": "Test01",
+    "description": "Test01",
+    "status": "open",
     "priority": "medium",
     "requester": "user@company.com",
-    "createdAt": "2026-02-01T15:31:29.346Z",
-    "updatedAt": "2026-02-01T16:10:28.469Z",
-    "comments": [
-      {
-        "id": "C_abda1b861847b8_1769959921229",
-        "author": "dev@company.com",
-        "text": "ich schaue es mir an !",
-        "createdAt": "2026-02-01T15:32:01.229Z"
-      },
-      {
-        "id": "C_86709f20b16de8_1769960321373",
-        "author": "dev@company.com",
-        "text": "Test",
-        "createdAt": "2026-02-01T15:38:41.373Z"
-      },
-      {
-        "id": "C_58ab71fc5a4a28_1769962228464",
-        "author": "dev@company.com",
-        "text": "Reeeee",
-        "createdAt": "2026-02-01T16:10:28.464Z"
-      }
-    ],
-    "assignee": "john@company.com"
+    "assignee": "dev@company.com",
+    "createdAt": "2026-02-07T11:23:03.256Z",
+    "updatedAt": "2026-02-07T11:28:26.614Z",
+    "comments": []
   },
   {
     "id": "T-1002",
-    "title": "Maus funkt nicht",
-    "description": "so kann ich nicht arbeiten!",
+    "title": "Test02",
+    "description": "Test02",
     "status": "open",
     "priority": "high",
     "requester": "user@company.com",
-    "createdAt": "2026-02-01T15:34:18.284Z",
-    "updatedAt": "2026-02-01T16:02:40.942Z",
-    "comments": [],
-    "assignee": "alex@company.com"
+    "createdAt": "2026-02-07T11:25:11.953Z",
+    "updatedAt": "2026-02-07T11:25:11.953Z",
+    "comments": []
   }
 ]

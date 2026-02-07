@@ -495,7 +495,6 @@ function TicketDetail(props: {
                   </option>
                 ))}
               </select>
-              <div className="hint">Ändern = direkt gespeichert im Backend.</div>
             </div>
 
             <div className="k">Status</div>
@@ -574,7 +573,7 @@ function NewTicketForm(props: { onCreate: (t: any) => void }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TicketPriority>("medium");
-  const [requester, setRequester] = useState("user@company.com");
+  const [requester, setRequester] = useState("dev@company.com");
   const [assignee, setAssignee] = useState("");
 
   return (
