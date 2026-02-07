@@ -4,4 +4,5 @@ export const agents = [
   "john@company.com",
   "sarah@company.com",
   "alex@company.com",
+  "alex@company.com",
 ];
