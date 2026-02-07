@@ -19,13 +19,13 @@
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "develop" ]
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: your-app-name    # set this to your application's name
+  AZURE_WEBAPP_NAME: ticketsystemspa   # set this to your application's name
   AZURE_WEBAPP_PACKAGE_PATH: '.'      # set this to the path to your web app project, defaults to the repository root
-  NODE_VERSION: '20.x'                # set this to the node version to use
+  NODE_VERSION: '20'                # set this to the node version to use
 
 permissions:
   contents: read
@@ -42,9 +42,10 @@ jobs:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
 
-    - name: npm install, build, and test
+    - name: npm install, build, and test (in Ticketsystem_SPA)
+      working-directory: Ticketsystem_SPA
       run: |
-        npm install
+        npm ci
         npm run build --if-present
         npm run test --if-present
 
@@ -52,7 +53,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: node-app
-        path: .
+        path: Ticketsystem_SPA
 
   deploy:
     permissions:
@@ -69,10 +70,16 @@ jobs:
       with:
         name: node-app
 
+    - name: Extract artifact contents
+      run: |
+        ls -la
+        # artifact is downloaded to a folder named node-app by the action
+        if [ -d "node-app" ]; then mv node-app/* .; fi
+
     - name: 'Deploy to Azure WebApp'
       id: deploy-to-webapp
-      uses: azure/webapps-deploy@v2
+      uses: azure/webapps-deploy@v3
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-        package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+        package: ./Ticketsystem_SPA
