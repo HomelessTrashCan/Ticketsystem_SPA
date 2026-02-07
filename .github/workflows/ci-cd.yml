@@ -17,5 +17,7 @@ jobs:
           node-version: '22.14.0'
       - name: Install dependencies
         run: npm install
+      - name: Run tests
+        run: npm run test
       - name: Build
         run: npm run build
