@@ -1,0 +1,55 @@
+<<<<<<< HEAD
+=======
+name: CI/CD
+
+on:
+  pull_request:
+    branches: [ develop ]
+  push:
+    branches: [ develop, main ]
+  workflow_dispatch: {}
+
+jobs:
+  ci:
+    name: Install, Lint, Test & Build (develop)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Run tests
+        run: npm test
+        working-directory: Ticketsystem_SPA
+
+      - name: Build
+        run: npm run build
+        working-directory: Ticketsystem_SPA
+
+  deploy:
+    name: Deploy (only main)
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install & Build
+        run: |
+          npm ci
+          npm run build
+        working-directory: Ticketsystem_SPA
+
+      - name: Deploy placeholder
+        run: echo "Füge hier deine Deploy-Schritte hinzu (GH Pages / S3 / Azure etc.)"
+>>>>>>> 61ee0b78961c601e3c62b27f3244d1008aa5941e
