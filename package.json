@@ -4,12 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "test": "vitest --run",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
+  "dev": "vite",
+  "build": "tsc -b && vite build",
+  "start": "node src/server/index.js",
+  "test": "vitest --run",
+  "lint": "eslint .",
+  "preview": "vite preview"
+},
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1",
