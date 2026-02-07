@@ -23,7 +23,8 @@ const distPath = path.join(process.cwd(), "dist");
 app.use(express.static(distPath));
 
 // SPA-Fallback (React Router)
-app.get("*", (req, res) => {
+// Use app.use to avoid passing a bare '*' pattern to path-to-regexp
+app.use((req, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
 

@@ -2,6 +2,8 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { agents } from "./data/agents.js";
 
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
+
 type TicketStatus = "open" | "in_progress" | "closed";
 type TicketPriority = "low" | "medium" | "high";
 
@@ -64,7 +66,7 @@ export default function App() {
   const [showNew, setShowNew] = useState(false);
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+    const apiBase = API_BASE;
     const url = `${apiBase}/api/tickets`;
     let mounted = true;
 
@@ -136,7 +138,7 @@ export default function App() {
     // Versuche, an ein lokales Backend zu posten. Falls das fehlschlägt,
     // fällt das UI auf lokales React-State-Only zurück.
     try {
-      const res = await fetch("http://localhost:4000/api/tickets", {
+      const res = await fetch(`${API_BASE}/api/tickets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -172,7 +174,7 @@ export default function App() {
     if (!t) return;
 
     try {
-      const res = await fetch(`http://localhost:4000/api/tickets/${id}`, {
+      const res = await fetch(`${API_BASE}/api/tickets/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
@@ -193,7 +195,7 @@ export default function App() {
     if (!t) return;
 
     try {
-      const res = await fetch(`http://localhost:4000/api/tickets/${id}`, {
+      const res = await fetch(`${API_BASE}/api/tickets/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assignee: assignee.trim() ? assignee.trim() : undefined }),
@@ -214,7 +216,7 @@ export default function App() {
     if (!t) return;
 
     try {
-      const res = await fetch(`http://localhost:4000/api/tickets/${id}`, {
+      const res = await fetch(`${API_BASE}/api/tickets/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ priority }),
@@ -238,7 +240,7 @@ export default function App() {
     const newComments = [...t.comments, c];
 
     try {
-      const res = await fetch(`http://localhost:4000/api/tickets/${id}`, {
+      const res = await fetch(`${API_BASE}/api/tickets/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ comments: newComments }),
@@ -256,7 +258,7 @@ export default function App() {
 
   async function deleteTicket(id: string) {
     try {
-      const response = await fetch(`http://localhost:4000/api/tickets/${id}`, {
+      const response = await fetch(`${API_BASE}/api/tickets/${id}`, {
         method: "DELETE",
       });
 
