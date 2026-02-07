@@ -6,9 +6,9 @@
     "status": "in_progress",
     "priority": "medium",
     "requester": "user@company.com",
-    "assignee": "sarah@company.com",
+    "assignee": "alex@company.com",
     "createdAt": "2026-02-07T11:23:03.256Z",
-    "updatedAt": "2026-02-07T11:43:50.166Z",
+    "updatedAt": "2026-02-07T13:51:57.201Z",
     "comments": []
   },
   {
@@ -32,6 +32,17 @@
     "assignee": "john@company.com",
     "createdAt": "2026-02-07T11:43:34.181Z",
     "updatedAt": "2026-02-07T11:43:34.181Z",
+    "comments": []
+  },
+  {
+    "id": "T-1004",
+    "title": "d",
+    "description": "sdfsf",
+    "status": "closed",
+    "priority": "medium",
+    "requester": "dev@company.com",
+    "createdAt": "2026-02-07T13:52:04.687Z",
+    "updatedAt": "2026-02-07T13:52:07.493Z",
     "comments": []
   }
 ]
