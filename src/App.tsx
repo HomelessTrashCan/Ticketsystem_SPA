@@ -362,7 +362,7 @@ export default function App() {
                 checked={filters.onlyMine}
                 onChange={(e) => setFilters((f) => ({ ...f, onlyMine: e.target.checked }))}
               />
-              <span>Nur meine Tickets (Assignee = {currentUser})</span>
+              <span>Nur eigene Tickets (Assignee = {currentUser})</span>
             </label>
 
             <button
