@@ -3,12 +3,12 @@
     "id": "T-1001",
     "title": "Test01",
     "description": "Test01",
-    "status": "open",
+    "status": "in_progress",
     "priority": "medium",
     "requester": "user@company.com",
-    "assignee": "dev@company.com",
+    "assignee": "sarah@company.com",
     "createdAt": "2026-02-07T11:23:03.256Z",
-    "updatedAt": "2026-02-07T11:28:26.614Z",
+    "updatedAt": "2026-02-07T11:43:50.166Z",
     "comments": []
   },
   {
@@ -20,6 +20,18 @@
     "requester": "user@company.com",
     "createdAt": "2026-02-07T11:25:11.953Z",
     "updatedAt": "2026-02-07T11:25:11.953Z",
+    "comments": []
+  },
+  {
+    "id": "T-1003",
+    "title": "Test03",
+    "description": "Test03",
+    "status": "open",
+    "priority": "medium",
+    "requester": "dev@company.com",
+    "assignee": "john@company.com",
+    "createdAt": "2026-02-07T11:43:34.181Z",
+    "updatedAt": "2026-02-07T11:43:34.181Z",
     "comments": []
   }
 ]
