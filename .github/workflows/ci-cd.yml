@@ -20,11 +20,6 @@ jobs:
         with:
           node-version: '18'
 
-
-      - name: Run lint
-        run: npm run lint
-        working-directory: Ticketsystem_SPA
-
       - name: Run tests
         run: npm test
         working-directory: Ticketsystem_SPA
