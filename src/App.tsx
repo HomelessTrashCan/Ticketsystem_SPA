@@ -270,7 +270,7 @@ export default function App() {
         const remaining = tickets.filter((t) => t.id !== id);
         setSelectedId(remaining[0]?.id ?? "");
       }
-      console.log(`Ticket ${id} gelöscht`);
+      console.log(`DasTicket ${id} gelöscht wurde`);
     } catch (err) {
       console.error("Delete error:", err);
     }
