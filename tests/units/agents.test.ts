@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { agents } from '../src/data/agents.js';
+import { agents } from '../../src/data/agents.js';
 
 describe('agents data', () => {
   it('should be an array with at least one email', () => {
