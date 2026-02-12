@@ -22,6 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+MONGODB_CONFIG.txt
+MONGODB_SETUP.md
 
 # Local environment files
 .env
+.env.local
+.env.*.local
+
+# Sensitive documentation (if created locally)
+**/CREDENTIALS.md
+**/SECRETS.md

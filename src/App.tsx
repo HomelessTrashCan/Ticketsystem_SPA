@@ -1,6 +1,8 @@
 
 import React, { useMemo, useState, useEffect } from "react";
-import { agents } from "./data/agents.js";
+import { useAuth, getAuthHeaders } from "./context/AuthContext";
+import { Login } from "./components/Login";
+import { PERMISSIONS } from "./rbac/permissions";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
@@ -11,7 +13,7 @@ type Comment = {
   id: string;
   author: string;
   text: string;
-  createdAt: string; // ISO
+  createdAt: string;
 };
 
 type Ticket = {
@@ -25,6 +27,7 @@ type Ticket = {
   createdAt: string; // ISO
   updatedAt: string; // ISO
   comments: Comment[];
+  createdBy?: string; // User ID who created the ticket
 };
 
 function uid(prefix = "id") {
@@ -40,7 +43,6 @@ function formatDate(iso: string) {
   return d.toLocaleString();
 }
 
-// start with empty list; we'll load from the backend (src/data/tickethistory.json -> /tickets)
 const initialTickets: Ticket[] = [];
 
 type Filters = {
@@ -51,9 +53,30 @@ type Filters = {
   onlyMine: boolean;
 };
 
-const currentUser = "dev@company.com";
-
 export default function App() {
+  const { user, isAuthenticated, loading, logout } = useAuth();
+
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh' 
+      }}>
+        <div>Laden...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
+  return <TicketApp currentUser={user?.email || "unknown@example.com"} onLogout={logout} />;
+}
+
+function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: () => void }) {
   const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
   const [selectedId, setSelectedId] = useState<string>(initialTickets[0]?.id ?? "");
   const [filters, setFilters] = useState<Filters>({
@@ -64,6 +87,7 @@ export default function App() {
     onlyMine: false,
   });
   const [showNew, setShowNew] = useState(false);
+  const [agents, setAgents] = useState<string[]>([]);
 
   useEffect(() => {
     const apiBase = API_BASE;
@@ -72,7 +96,9 @@ export default function App() {
 
     (async () => {
       try {
-        const res = await fetch(url);
+        const res = await fetch(url, {
+          headers: getAuthHeaders(),
+        });
         if (!res.ok) {
           console.warn("Could not fetch tickets", res.status);
           return;
@@ -91,6 +117,27 @@ export default function App() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  // Agents vom Backend laden
+  useEffect(() => {
+    const apiBase = API_BASE;
+    const url = `${apiBase}/api/agents`;
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch(url, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) return;
+        const data: string[] = await res.json();
+        if (!mounted) return;
+        if (Array.isArray(data)) setAgents(data);
+      } catch (err) {
+        console.warn('Failed to load agents from', url, err);
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
 
   const filtered = useMemo(() => {
@@ -135,37 +182,47 @@ export default function App() {
       assignee: input.assignee?.trim() ? input.assignee.trim() : undefined,
     };
 
-    // Versuche, an ein lokales Backend zu posten. Falls das fehlschlägt,
-    // fällt das UI auf lokales React-State-Only zurück.
+    //Optimistic UI Update: Ticket sofort hinzufügen
+    const tempId = `temp-${uid('T')}`;
+    const optimisticTicket: Ticket = {
+      id: tempId,
+      title: payload.title,
+      description: payload.description,
+      status: "open",
+      priority: payload.priority,
+      requester: payload.requester,
+      assignee: payload.assignee,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      comments: [],
+    };
+
+    // UI sofort aktualisieren
+    setTickets((prev) => [optimisticTicket, ...prev]);
+    setSelectedId(tempId);
+    setShowNew(false);
+
+    // Dann an Server senden
     try {
       const res = await fetch(`${API_BASE}/api/tickets`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const created: Ticket = await res.json();
-      setTickets((prev) => [created, ...prev]);
+      
+      // Ersetze optimistisches Ticket mit Server-Response
+      setTickets((prev) => 
+        prev.map((t) => (t.id === tempId ? created : t))
+      );
       setSelectedId(created.id);
     } catch (err) {
-      // Fallback: lokale Erzeugung (nicht persistent auf Disk)
-      console.error("Persist to server failed, falling back to local state:", err);
-      const t: Ticket = {
-        id: `T-${Math.floor(1000 + Math.random() * 9000)}`,
-        title: payload.title,
-        description: payload.description,
-        status: "open",
-        priority: payload.priority,
-        requester: payload.requester,
-        assignee: payload.assignee,
-        createdAt: nowIso(),
-        updatedAt: nowIso(),
-        comments: [],
-      };
-      setTickets((prev) => [t, ...prev]);
-      setSelectedId(t.id);
-    } finally {
-      setShowNew(false);
+      console.error("Persist to server failed:", err);
+      // Bei Fehler: Behalte das optimistische Ticket mit lokalem Prefix
+      setTickets((prev) => 
+        prev.map((t) => (t.id === tempId ? { ...t, id: `local-${uid('T')}` } : t))
+      );
     }
   }
 
@@ -173,10 +230,14 @@ export default function App() {
     const t = tickets.find((x) => x.id === id);
     if (!t) return;
 
+    //Optimistic UI Update
+    const previousTicket = { ...t };
+    upsertTicket({ ...t, status, updatedAt: nowIso() });
+
     try {
       const res = await fetch(`${API_BASE}/api/tickets/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ status }),
       });
 
@@ -185,8 +246,8 @@ export default function App() {
       upsertTicket(updated);
     } catch (err) {
       console.error("Update status error:", err);
-      // Fallback: lokale Änderung
-      upsertTicket({ ...t, status, updatedAt: nowIso() });
+      // Rollback bei Fehler
+      upsertTicket(previousTicket);
     }
   }
 
@@ -194,11 +255,16 @@ export default function App() {
     const t = tickets.find((x) => x.id === id);
     if (!t) return;
 
+    //Optimistic UI Update
+    const previousTicket = { ...t };
+    const newAssignee = assignee.trim() ? assignee.trim() : undefined;
+    upsertTicket({ ...t, assignee: newAssignee, updatedAt: nowIso() });
+
     try {
       const res = await fetch(`${API_BASE}/api/tickets/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignee: assignee.trim() ? assignee.trim() : undefined }),
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ assignee: newAssignee }),
       });
 
       if (!res.ok) throw new Error("Update failed");
@@ -206,8 +272,8 @@ export default function App() {
       upsertTicket(updated);
     } catch (err) {
       console.error("Update assignee error:", err);
-      // Fallback: lokale Änderung
-      upsertTicket({ ...t, assignee: assignee.trim() ? assignee.trim() : undefined, updatedAt: nowIso() });
+      // Rollback bei Fehler
+      upsertTicket(previousTicket);
     }
   }
 
@@ -215,10 +281,14 @@ export default function App() {
     const t = tickets.find((x) => x.id === id);
     if (!t) return;
 
+    //Optimistic UI Update
+    const previousTicket = { ...t };
+    upsertTicket({ ...t, priority, updatedAt: nowIso() });
+
     try {
       const res = await fetch(`${API_BASE}/api/tickets/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ priority }),
       });
 
@@ -227,8 +297,8 @@ export default function App() {
       upsertTicket(updated);
     } catch (err) {
       console.error("Update priority error:", err);
-      // Fallback: lokale Änderung
-      upsertTicket({ ...t, priority, updatedAt: nowIso() });
+      // Rollback bei Fehler
+      upsertTicket(previousTicket);
     }
   }
 
@@ -239,10 +309,14 @@ export default function App() {
     const c: Comment = { id: uid("C"), author: currentUser, text, createdAt: nowIso() };
     const newComments = [...t.comments, c];
 
+    //Optimistic UI Update
+    const previousTicket = { ...t };
+    upsertTicket({ ...t, comments: newComments, updatedAt: nowIso() });
+
     try {
       const res = await fetch(`${API_BASE}/api/tickets/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ comments: newComments }),
       });
 
@@ -251,30 +325,43 @@ export default function App() {
       upsertTicket(updated);
     } catch (err) {
       console.error("Add comment error:", err);
-      // Fallback: lokale Änderung
-      upsertTicket({ ...t, comments: newComments, updatedAt: nowIso() });
+      // Rollback bei Fehler
+      upsertTicket(previousTicket);
     }
   }
 
   async function deleteTicket(id: string) {
+    const t = tickets.find((x) => x.id === id);
+    if (!t) return;
+
+    //Optimistic UI Update
+    const previousTickets = [...tickets];
+    const previousSelectedId = selectedId;
+    
+    setTickets((prev) => prev.filter((t) => t.id !== id));
+    if (selectedId === id) {
+      const remaining = tickets.filter((t) => t.id !== id);
+      setSelectedId(remaining[0]?.id ?? "");
+    }
+
     try {
+      console.log('Sending DELETE for', id);
       const response = await fetch(`${API_BASE}/api/tickets/${id}`, {
         method: "DELETE",
+        headers: getAuthHeaders(),
       });
-
+      console.log('Delete response status', response.status);
       if (!response.ok) {
+        const text = await response.text();
+        console.error('Delete response body:', text);
         throw new Error("Delete failed");
       }
-
-      // Frontend Update: Ticket aus State entfernen
-      setTickets((prev) => prev.filter((t) => t.id !== id));
-      if (selectedId === id) {
-        const remaining = tickets.filter((t) => t.id !== id);
-        setSelectedId(remaining[0]?.id ?? "");
-      }
-      console.log(`DasTicket ${id} gelöscht wurde`);
+      console.log(`Das Ticket ${id} wurde gelöscht`);
     } catch (err) {
       console.error("Delete error:", err);
+      // Rollback bei Fehler
+      setTickets(previousTickets);
+      setSelectedId(previousSelectedId);
     }
   }
 
@@ -285,13 +372,17 @@ export default function App() {
           <div className="logo" aria-hidden />
           <div>
             <div className="brandTitle">Ticket System</div>
-            <div className="brandSub">UI Demo (Vite + React)</div>
+            <div className="brandSub">Demo (Vite + React)</div>
           </div>
         </div>
 
         <div className="topbarActions">
+          <span className="user-info">👤 {currentUser}</span>
           <button className="btn" onClick={() => setShowNew(true)}>
             + Neues Ticket
+          </button>
+          <button className="btn" onClick={onLogout}>
+            Abmelden
           </button>
         </div>
       </header>
@@ -305,7 +396,7 @@ export default function App() {
               <div className="label">Suche</div>
               <input
                 className="input"
-                placeholder="z.B. T-1002, login, maria…"
+                placeholder="z.B. stichwortartig T-1002, login, maria…"
                 value={filters.q}
                 onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
               />
@@ -338,25 +429,24 @@ export default function App() {
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
                 </select>
-
-
-                <label className="field">
-                <div className="label">Assignee</div>
-                <select
-                  className="select"
-                  value={filters.agent}
-                  onChange={(e) => setFilters((f) => ({ ...f, agent: e.target.value as any }))}
-                >
-                  <option value="all">Alle</option>
-                  {agents.map((agent) => (
-                    <option key={agent} value={agent}>
-                      {agent}
-                    </option>
-                  ))}
-                </select>
-              </label>
               </label>
             </div>
+
+            <label className="field">
+              <div className="label">Assignee</div>
+              <select
+                className="select"
+                value={filters.agent}
+                onChange={(e) => setFilters((f) => ({ ...f, agent: e.target.value as any }))}
+              >
+                <option value="all">Alle</option>
+                {agents.map((agent) => (
+                  <option key={agent} value={agent}>
+                    {agent}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             <label className="check">
               <input
@@ -368,7 +458,7 @@ export default function App() {
             </label>
 
             <button
-              className="btn"
+              className="btn filter-reset-btn"
               onClick={() =>
                 setFilters({
                   q: "",
@@ -416,6 +506,7 @@ export default function App() {
           {selected ? (
             <TicketDetail
               ticket={selected}
+              agents={agents}
               onStatusChange={(s) => updateStatus(selected.id, s)}
               onAssigneeChange={(a) => updateAssignee(selected.id, a)}
               onPriorityChange={(p) => updatePriority(selected.id, p)}
@@ -432,7 +523,7 @@ export default function App() {
 
       {showNew && (
         <Modal title="Neues Ticket" onClose={() => setShowNew(false)}>
-          <NewTicketForm onCreate={createTicket} />
+          <NewTicketForm onCreate={createTicket} agents={agents} />
         </Modal>
       )}
     </div>
@@ -441,6 +532,7 @@ export default function App() {
 
 function TicketDetail(props: {
   ticket: Ticket;
+  agents: string[];
   onStatusChange: (s: TicketStatus) => void;
   onAssigneeChange: (a: string) => void;
   onPriorityChange: (p: TicketPriority) => void;
@@ -449,6 +541,15 @@ function TicketDetail(props: {
 }) {
   const { ticket } = props;
   const [comment, setComment] = useState("");
+  const { hasPermission } = useAuth();
+  
+  // Permission checks
+  const canDelete = hasPermission(PERMISSIONS.TICKET_DELETE);
+  const canEditPriority = hasPermission(PERMISSIONS.PRIORITY_EDIT);
+  const canAssign = hasPermission(PERMISSIONS.TICKET_ASSIGN);
+  const canChangeStatusAll = hasPermission(PERMISSIONS.STATUS_CHANGE_ALL);
+  const canCloseOwn = hasPermission(PERMISSIONS.TICKET_CLOSE_OWN);
+  const canCommentOnClosed = hasPermission(PERMISSIONS.COMMENT_ADD_CLOSED);
 
   return (
     <div className="panel detail">
@@ -466,9 +567,25 @@ function TicketDetail(props: {
           </div>
         </div>
 
-        <button className="btn danger" onClick={props.onDelete} title="Ticket löschen">
-          Löschen
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {/* Only show delete button if user has permission */}
+          {canDelete && (
+            <button className="btn danger" onClick={props.onDelete} title="Ticket löschen">
+              Löschen
+            </button>
+          )}
+          
+          {/* Users with canCloseOwn can close tickets */}
+          {canCloseOwn && !canChangeStatusAll && ticket.status !== 'closed' && (
+            <button 
+              className="btn" 
+              onClick={() => props.onStatusChange('closed')} 
+              title="Ticket schließen"
+            >
+              Ticket schließen
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid2">
@@ -485,44 +602,59 @@ function TicketDetail(props: {
 
             <div className="k">Assignee</div>
             <div className="v">
-              <select
-                className="select"
-                value={ticket.assignee ?? ""}
-                onChange={(e) => props.onAssigneeChange(e.target.value)}
-              >
-                <option value="">-- Unassigned --</option>
-                {agents.map((agent) => (
-                  <option key={agent} value={agent}>
-                    {agent}
-                  </option>
-                ))}
-              </select>
+              {/* Only users with TICKET_ASSIGN permission can change assignee */}
+              {canAssign ? (
+                <select
+                  className="select"
+                  value={ticket.assignee ?? ""}
+                  onChange={(e) => props.onAssigneeChange(e.target.value)}
+                >
+                  <option value="">-- Unassigned --</option>
+                  {props.agents.map((agent) => (
+                    <option key={agent} value={agent}>
+                      {agent}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span>{ticket.assignee || "Nicht zugewiesen"}</span>
+              )}
             </div>
 
             <div className="k">Status</div>
             <div className="v">
-              <select
-                className="select"
-                value={ticket.status}
-                onChange={(e) => props.onStatusChange(e.target.value as TicketStatus)}
-              >
-                <option value="open">Open</option>
-                <option value="in_progress">In progress</option>
-                <option value="closed">Closed</option>
-              </select>
+              {/* Only users with STATUS_CHANGE_ALL permission can change status via dropdown */}
+              {canChangeStatusAll ? (
+                <select
+                  className="select"
+                  value={ticket.status}
+                  onChange={(e) => props.onStatusChange(e.target.value as TicketStatus)}
+                >
+                  <option value="open">Open</option>
+                  <option value="in_progress">In progress</option>
+                  <option value="closed">Closed</option>
+                </select>
+              ) : (
+                <StatusPill status={ticket.status} />
+              )}
             </div>
 
             <div className="k">Priorität</div>
             <div className="v">
-              <select
-                className="select"
-                value={ticket.priority}
-                onChange={(e) => props.onPriorityChange(e.target.value as TicketPriority)}
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
+              {/* Only users with PRIORITY_EDIT permission can change priority */}
+              {canEditPriority ? (
+                <select
+                  className="select"
+                  value={ticket.priority}
+                  onChange={(e) => props.onPriorityChange(e.target.value as TicketPriority)}
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              ) : (
+                <PriorityPill priority={ticket.priority} />
+              )}
             </div>
           </div>
         </div>
@@ -545,38 +677,50 @@ function TicketDetail(props: {
           {ticket.comments.length === 0 && <div className="empty">Noch keine Kommentare.</div>}
         </div>
 
-        <div className="commentBox">
-          <textarea
-            className="textarea"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Kommentar schreiben…"
-          />
-          <div className="commentActions">
-            <button
-              className="btn"
-              onClick={() => {
-                const t = comment.trim();
-                if (!t) return;
-                props.onAddComment(t);
-                setComment("");
-              }}
-            >
-              Kommentar hinzufügen
-            </button>
+        {/* Only allow comments on open tickets, or closed if user has permission */}
+        {(ticket.status !== 'closed' || canCommentOnClosed) ? (
+          <div className="commentBox">
+            <textarea
+              className="textarea"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Kommentar schreiben…"
+            />
+            <div className="commentActions">
+              <button
+                className="btn"
+                onClick={() => {
+                  const t = comment.trim();
+                  if (!t) return;
+                  props.onAddComment(t);
+                  setComment("");
+                }}
+              >
+                Kommentar hinzufügen
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="empty" style={{ marginTop: '16px', fontStyle: 'italic', color: '#666' }}>
+            Dieses Ticket ist geschlossen. Keine weiteren Kommentare möglich.
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function NewTicketForm(props: { onCreate: (t: any) => void }) {
+function NewTicketForm(props: { onCreate: (t: any) => void; agents: string[] }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TicketPriority>("medium");
   const [requester, setRequester] = useState("dev@company.com");
   const [assignee, setAssignee] = useState("");
+  const { hasPermission } = useAuth();
+  
+  // Permission checks
+  const canEditPriority = hasPermission(PERMISSIONS.PRIORITY_EDIT);
+  const canAssign = hasPermission(PERMISSIONS.TICKET_ASSIGN);
 
   return (
     <form
@@ -586,7 +730,19 @@ function NewTicketForm(props: { onCreate: (t: any) => void }) {
         const t = title.trim();
         const d = description.trim();
         if (!t || !d) return;
-        props.onCreate({ title: t, description: d, priority, requester: requester.trim(), assignee });
+        
+        // Users only send title and description, backend sets requester/priority/assignee
+        // Users with permissions can set additional fields
+        const ticketData: any = { title: t, description: d };
+        if (canEditPriority) {
+          ticketData.priority = priority;
+          ticketData.requester = requester.trim();
+        }
+        if (canAssign) {
+          ticketData.assignee = assignee;
+        }
+        
+        props.onCreate(ticketData);
       }}
     >
       <label className="field">
@@ -599,33 +755,39 @@ function NewTicketForm(props: { onCreate: (t: any) => void }) {
         <textarea className="textarea" value={description} onChange={(e) => setDescription(e.target.value)} />
       </label>
 
-      <div className="row2">
+      {/* Only users with PRIORITY_EDIT permission can set priority and requester */}
+      {canEditPriority && (
+        <div className="row2">
+          <label className="field">
+            <div className="label">Priorität</div>
+            <select className="select" value={priority} onChange={(e) => setPriority(e.target.value as any)}>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+
+          <label className="field">
+            <div className="label">Requester</div>
+            <input className="input" value={requester} onChange={(e) => setRequester(e.target.value)} />
+          </label>
+        </div>
+      )}
+
+      {/* Only users with TICKET_ASSIGN permission can assign tickets */}
+      {canAssign && (
         <label className="field">
-          <div className="label">Priorität</div>
-          <select className="select" value={priority} onChange={(e) => setPriority(e.target.value as any)}>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
+          <div className="label">Assignee</div>
+          <select className="select" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+            <option value="">-- Unassigned --</option>
+            {props.agents.map((agent) => (
+              <option key={agent} value={agent}>
+                {agent}
+              </option>
+            ))}
           </select>
         </label>
-
-        <label className="field">
-          <div className="label">Requester</div>
-          <input className="input" value={requester} onChange={(e) => setRequester(e.target.value)} />
-        </label>
-      </div>
-
-      <label className="field">
-        <div className="label">Assignee</div>
-        <select className="select" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-          <option value="">-- Unassigned --</option>
-          {agents.map((agent) => (
-            <option key={agent} value={agent}>
-              {agent}
-            </option>
-          ))}
-        </select>
-      </label>
+      )}
 
       <div className="formActions">
         <button className="btn" type="submit">

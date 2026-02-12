@@ -1,0 +1,49 @@
+[
+  {
+    "id": "T-1001",
+    "title": "Test01",
+    "description": "Test01",
+    "status": "open",
+    "priority": "medium",
+    "requester": "dev@company.com",
+    "createdAt": "2026-02-07T21:15:25.171Z",
+    "updatedAt": "2026-02-07T21:17:24.177Z",
+    "comments": [],
+    "assignee": "alex@company.com"
+  },
+  {
+    "id": "T-1002",
+    "title": "test",
+    "description": "test",
+    "status": "closed",
+    "priority": "medium",
+    "requester": "dev@company.com",
+    "assignee": "maria@company.com",
+    "createdAt": "2026-02-07T21:17:11.289Z",
+    "updatedAt": "2026-02-07T21:17:35.783Z",
+    "comments": []
+  },
+  {
+    "id": "T-1003",
+    "title": "Test03",
+    "description": "Cloased",
+    "status": "closed",
+    "priority": "medium",
+    "requester": "dev@company.com",
+    "assignee": "john@company.com",
+    "createdAt": "2026-02-07T21:19:43.559Z",
+    "updatedAt": "2026-02-07T21:19:55.628Z",
+    "comments": []
+  },
+  {
+    "id": "T-1004",
+    "title": "s",
+    "description": "fsf",
+    "status": "open",
+    "priority": "medium",
+    "requester": "dev@company.com",
+    "createdAt": "2026-02-07T23:11:14.531Z",
+    "updatedAt": "2026-02-07T23:11:14.531Z",
+    "comments": []
+  }
+]

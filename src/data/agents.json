@@ -1,0 +1,7 @@
+[
+  { "id": "a1", "email": "dev@company.com", "vorname": "Dev", "nachname": "User", "rolle": "admin" },
+  { "id": "a2", "email": "maria@company.com", "vorname": "Maria", "nachname": "Schmidt", "rolle": "agent" },
+  { "id": "a3", "email": "john@company.com", "vorname": "John", "nachname": "Doe", "rolle": "agent" },
+  { "id": "a4", "email": "sarah@company.com", "vorname": "Sarah", "nachname": "Müller", "rolle": "agent" },
+  { "id": "a5", "email": "alex@company.com", "vorname": "Alex", "nachname": "Becker", "rolle": "agent" }
+]

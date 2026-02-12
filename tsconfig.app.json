@@ -24,5 +24,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": [ "tests/units/agents.test.ts"]
+  "include": ["src"]
 }

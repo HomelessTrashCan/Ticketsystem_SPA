@@ -23,7 +23,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: ticketsystemspa   # set this to your application's name
+ 
   AZURE_WEBAPP_PACKAGE_PATH: '.'      # set this to the path to your web app project, defaults to the repository root
   NODE_VERSION: '20'                # set this to the node version to use
 
@@ -42,18 +42,31 @@ jobs:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
 
-    - name: npm install, build, and test (in Ticketsystem_SPA)
-      working-directory: Ticketsystem_SPA
+    - name: npm install, build and prune (skip tests for deployment)
+      # run in repository root (workflow already lives in project root)
+      working-directory: .
       run: |
+        # install dev+prod deps so TypeScript and other build tools are available
         npm ci
         npm run build --if-present
-        npm run test --if-present
+        # Note: Tests are skipped in deployment workflow as they require MongoDB
+        # Tests should run in separate CI workflow with MongoDB service
+        # Verify dist folder exists
+        if [ ! -d "dist" ]; then
+          echo "ERROR: dist folder not found after build!"
+          exit 1
+        fi
+        echo "Build successful, dist folder contents:"
+        ls -la dist/
+        # remove dev dependencies before packaging to keep artifact small
+        npm prune --production
 
     - name: Upload artifact for deployment job
       uses: actions/upload-artifact@v4
       with:
         name: node-app
-        path: Ticketsystem_SPA
+        path: .
+        include-hidden-files: true
 
   deploy:
     permissions:
@@ -69,17 +82,54 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: node-app
+        path: .
 
-    - name: Extract artifact contents
+    - name: Verify deployment package
       run: |
+        echo "=== Deployment package contents ==="
         ls -la
-        # artifact is downloaded to a folder named node-app by the action
-        if [ -d "node-app" ]; then mv node-app/* .; fi
+        echo ""
+        echo "=== Checking critical files ==="
+        [ -f "package.json" ] && echo "✓ package.json found" || echo "✗ package.json MISSING"
+        [ -f "web.config" ] && echo "✓ web.config found" || echo "✗ web.config MISSING"
+        [ -f "src/server/index.js" ] && echo "✓ server/index.js found" || echo "✗ server/index.js MISSING"
+        [ -d "dist" ] && echo "✓ dist folder found" || echo "✗ dist folder MISSING"
+        if [ -d "dist" ]; then
+          echo ""
+          echo "=== dist folder contents ==="
+          ls -la dist/
+          [ -f "dist/index.html" ] && echo "✓ dist/index.html found" || echo "✗ dist/index.html MISSING"
+        fi
+
+    - name: Check publish profile secret
+      run: |
+        if [ -z "${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}" ]; then
+          echo "ERROR: AZURE_WEBAPP_PUBLISH_PROFILE secret is not set or empty.";
+          exit 1;
+        else
+          echo "AZURE_WEBAPP_PUBLISH_PROFILE secret found.";
+        fi
+
+    # Using publish profile secret for deployment; Azure login step removed
 
     - name: 'Deploy to Azure WebApp'
       id: deploy-to-webapp
       uses: azure/webapps-deploy@v3
       with:
-        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-        package: ./Ticketsystem_SPA
+        package: ./
+    
+    - name: 'Configure App Settings'
+      run: |
+        echo "⚠️ WICHTIG: Konfiguriere folgende Environment Variables manuell im Azure Portal:"
+        echo "  - MONGO_URI (MongoDB Connection String)"
+        echo "  - GOOGLE_CLIENT_ID (aus Google Cloud Console)"
+        echo "  - GOOGLE_CLIENT_SECRET (aus Google Cloud Console)"
+        echo "  - SESSION_SECRET (Zufälliger String, min. 32 Zeichen)"
+        echo "  - JWT_SECRET (Zufälliger String, min. 32 Zeichen)"
+        echo "  - FRONTEND_URL (URL der deployed App, z.B. https://ihre-app.azurewebsites.net)"
+        echo "  - NODE_ENV=production"
+        echo ""
+        echo "Azure Portal → Web App → Configuration → Application Settings"
+    
