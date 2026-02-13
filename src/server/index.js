@@ -122,58 +122,90 @@ app.use("/api/auth", authRouter);
 app.use("/api/tickets", ticketsRouter);
 app.use("/api/agents", agentsRouter);
 
-// Frontend (Vite build liegt im Projekt-Root: /dist)
-const distPath = path.join(process.cwd(), "dist");
 console.log('=== Server Configuration ===');
-console.log('Static files path:', distPath);
 console.log('Current working directory:', process.cwd());
 console.log('Node version:', process.version);
 console.log('Environment:', process.env.NODE_ENV || 'development');
 
-// Serve static files with proper configuration
-app.use(express.static(distPath, {
-  index: false, // Don't auto-serve index.html, we'll handle it explicitly
-  setHeaders: (res, filePath) => {
-    console.log('Serving static file:', filePath);
-    if (filePath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript');
-    } else if (filePath.endsWith('.css')) {
-      res.setHeader('Content-Type', 'text/css');
-    }
-  }
-}));
-
-// Explicit root route
-app.get('/', (req, res) => {
-  console.log('Root route requested, serving index.html');
-  const indexPath = path.join(distPath, 'index.html');
-  res.sendFile(indexPath, (err) => {
-    if (err) {
-      console.error('Error serving index.html from root:', err);
-      console.error('Tried to serve from:', indexPath);
-      res.status(500).send(`Error loading application. File: ${indexPath}`);
-    }
-  });
-});
-
-// SPA-Fallback (React Router)
-// Serve index.html for all non-API routes (must be last)
-app.use((req, res, next) => {
-  // Skip API routes
-  if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
-    return next();
-  }
+// Static file serving ONLY in production
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(process.cwd(), "dist");
+  console.log('Production mode: serving static files from:', distPath);
   
-  console.log('SPA fallback for:', req.path);
-  const indexPath = path.join(distPath, 'index.html');
-  res.sendFile(indexPath, (err) => {
-    if (err) {
-      console.error('Error serving index.html:', err);
-      console.error('Path attempted:', indexPath);
-      res.status(500).send(`Error loading application. File not found: ${indexPath}`);
+  // Serve static files with proper configuration
+  app.use(express.static(distPath, {
+    index: false, // Don't auto-serve index.html, we'll handle it explicitly
+    setHeaders: (res, filePath) => {
+      console.log('Serving static file:', filePath);
+      if (filePath.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript');
+      } else if (filePath.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css');
+      }
     }
+  }));
+
+  // Explicit root route
+  app.get('/', (req, res) => {
+    console.log('Root route requested, serving index.html');
+    const indexPath = path.join(distPath, 'index.html');
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        console.error('Error serving index.html from root:', err);
+        console.error('Tried to serve from:', indexPath);
+        res.status(500).send(`Error loading application. File: ${indexPath}`);
+      }
+    });
   });
-});
+
+  // SPA-Fallback (React Router)
+  // Serve index.html for all non-API routes (must be last)
+  app.use((req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
+      return next();
+    }
+    
+    console.log('SPA fallback for:', req.path);
+    const indexPath = path.join(distPath, 'index.html');
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        console.error('Error serving index.html:', err);
+        console.error('Path attempted:', indexPath);
+        res.status(500).send(`Error loading application. File not found: ${indexPath}`);
+      }
+    });
+  });
+} else {
+  console.log('Development mode: Frontend served by Vite (http://localhost:5173)');
+  console.log('Backend serves API routes only');
+}
+
+// Text-Index für Suche erstellen
+async function createIndexes() {
+  try {
+    const db = await connectDB();
+    const tickets = db.collection('tickets');
+    
+    // Index für Suche
+    await tickets.createIndex({ 
+      title: 'text', 
+      description: 'text',
+      id: 'text'
+    });
+    
+    // Index für Filter
+    await tickets.createIndex({ status: 1, priority: 1, assignee: 1 });
+    await tickets.createIndex({ updatedAt: -1 });
+    
+    console.log('✅ Database indexes created');
+  } catch (err) {
+    console.error('Index creation failed:', err);
+  }
+}
+
+// Nach connectDB() aufrufen
+createIndexes();
 
 // Start server IMMEDIATELY (don't wait for MongoDB)
 console.log('=== Starting Express Server ===');

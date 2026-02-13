@@ -20,6 +20,10 @@ Diese Datei beschreibt, welche Umgebungsvariablen für **Production Deployment**
 | `NODE_ENV` | Environment | `production` | Wichtig für Sicherheit |
 | `PORT` | Server Port | `8080` | Optional (Azure setzt oft automatisch) |
 
+> ⚠️ **WICHTIG:** `VITE_API_URL` wird **NICHT** in Production gesetzt!  
+> In Production verwendet die App automatisch relative URLs (`/api/tickets`),  
+> da Frontend und Backend vom selben Server serviert werden.
+
 ---
 
 ## 🔐 Secrets generieren
@@ -45,6 +49,7 @@ Führen Sie zweimal aus für `SESSION_SECRET` und `JWT_SECRET`.
 | `MONGO_URI` | Dev-Datenbank | Production-Datenbank |
 | `SESSION_SECRET` | Dev-Secret | Production-Secret (neu generiert) |
 | `JWT_SECRET` | Dev-Secret | Production-Secret (neu generiert) |
+| `VITE_API_URL` | `http://localhost:8080` | ❌ **NICHT setzen** (verwendet relative URLs) |
 
 ---
 

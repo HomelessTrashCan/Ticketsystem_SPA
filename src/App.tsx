@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from "react";
 import { useAuth, getAuthHeaders } from "./context/AuthContext";
 import { Login } from "./components/Login";
@@ -88,29 +87,45 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
   });
   const [showNew, setShowNew] = useState(false);
   const [agents, setAgents] = useState<string[]>([]);
+  
+  // State für Pagination
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 50,
+    total: 0,
+    totalPages: 0
+  });
 
   useEffect(() => {
     const apiBase = API_BASE;
-    const url = `${apiBase}/api/tickets`;
     let mounted = true;
 
     (async () => {
       try {
-        const res = await fetch(url, {
+        const res = await fetch(`${apiBase}/api/tickets`, {
           headers: getAuthHeaders(),
         });
         if (!res.ok) {
           console.warn("Could not fetch tickets", res.status);
           return;
         }
-        const data: Ticket[] = await res.json();
+        const response = await res.json();
+        
+        // Handle paginated response
+        const tickets = response.data || response;
+        const paginationData = response.pagination;
+        
         if (!mounted) return;
-        if (Array.isArray(data)) {
-          setTickets(data);
-          setSelectedId(data[0]?.id ?? "");
+        if (Array.isArray(tickets)) {
+          setTickets(tickets);
+          setSelectedId(tickets[0]?.id ?? "");
+          
+          if (paginationData) {
+            setPagination(paginationData);
+          }
         }
       } catch (err) {
-        console.warn("Failed to load tickets from", url, err);
+        console.warn("Failed to load tickets from", apiBase, err);
       }
     })();
 
@@ -141,16 +156,15 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
   }, []);
 
   const filtered = useMemo(() => {
-    const q = filters.q.trim().toLowerCase();
     return tickets
       .filter((t) => (filters.onlyMine ? t.assignee === currentUser : true))
       .filter((t) => (filters.agent === "all" ? true : t.assignee === filters.agent))
       .filter((t) => (filters.status === "all" ? true : t.status === filters.status))
       .filter((t) => (filters.priority === "all" ? true : t.priority === filters.priority))
       .filter((t) => {
-        if (!q) return true;
+        if (!filters.q) return true;
         const hay = `${t.id} ${t.title} ${t.description} ${t.requester} ${t.assignee ?? ""}`.toLowerCase();
-        return hay.includes(q);
+        return hay.includes(filters.q);
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [tickets, filters]);
@@ -499,6 +513,30 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
               ))}
               {filtered.length === 0 && <div className="empty">Keine Treffer.</div>}
             </div>
+            
+            {/* Pagination Controls */}
+            {pagination.totalPages > 1 && (
+              <div className="pagination">
+                <button 
+                  disabled={pagination.page === 1}
+                  onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
+                >
+                  ← Vorherige
+                </button>
+                
+                <span>
+                  Seite {pagination.page} von {pagination.totalPages} 
+                  ({pagination.total} Tickets)
+                </span>
+                
+                <button 
+                  disabled={pagination.page === pagination.totalPages}
+                  onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
+                >
+                  Nächste →
+                </button>
+              </div>
+            )}
           </div>
         </aside>
 

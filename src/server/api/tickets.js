@@ -66,12 +66,73 @@ router.get('/', async (req, res) => {
   try {
     const col = await getTicketsCollection();
     
-    // Admins/Support sehen alle Tickets, User nur eigene
+    // Basis-Filter (RBAC bleibt)
     const canViewAll = hasPermission(req.user, PERMISSIONS.TICKET_VIEW_ALL);
-    const filter = canViewAll ? {} : { createdBy: req.user.id };
+    const baseFilter = canViewAll ? {} : { createdBy: req.user.id };
     
-    const tickets = await col.find(filter).sort({ updatedAt: -1 }).toArray();
-    res.json(tickets);
+    // Query-Parameter auslesen
+    const { 
+      status, 
+      priority, 
+      assignee, 
+      search,
+      page = 1,
+      limit = 50
+    } = req.query;
+    
+    // Filter erweitern
+    const filter = { ...baseFilter };
+    
+    if (status && status !== 'all') {
+      filter.status = status;
+    }
+    
+    if (priority && priority !== 'all') {
+      filter.priority = priority;
+    }
+    
+    if (assignee && assignee !== 'all') {
+      filter.assignee = assignee;
+    }
+    
+    // Text-Suche (benötigt MongoDB Text Index)
+    if (search && search.trim()) {
+      filter.$or = [
+        { id: { $regex: search, $options: 'i' } },
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { requester: { $regex: search, $options: 'i' } },
+        { assignee: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    // Pagination berechnen
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+    
+    // Zähle total (für Pagination Info)
+    const total = await col.countDocuments(filter);
+    
+    // Hole gefilterte + paginierte Tickets
+    const tickets = await col
+      .find(filter)
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .toArray();
+    
+    // Response mit Pagination-Metadaten
+    res.json({
+      data: tickets,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+        hasMore: skip + tickets.length < total
+      }
+    });
   } catch (err) {
     console.error('GET /tickets error', err);
     res.status(500).json({ error: 'Could not read tickets' });

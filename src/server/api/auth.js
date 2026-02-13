@@ -31,8 +31,8 @@ router.get(
     // Determine frontend URL
     let frontendUrl = process.env.FRONTEND_URL;
     
-    // If not set, use the current host (for production)
-    if (!frontendUrl || frontendUrl.includes('localhost')) {
+    // If not set, fallback to current host (for production)
+    if (!frontendUrl) {
       const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
       const host = req.headers.host || req.hostname;
       frontendUrl = `${protocol}://${host}`;
