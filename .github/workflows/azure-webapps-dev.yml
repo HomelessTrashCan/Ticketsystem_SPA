@@ -1,7 +1,7 @@
 name: Deploy to Azure Production
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "develop" ]
   workflow_dispatch:
 
 env:
@@ -13,9 +13,9 @@ permissions:
   contents: read
 
 jobs:
-  # ========================================
+  
   # UNIT TESTS (ohne Datenbank)
-  # ========================================
+ 
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -35,9 +35,7 @@ jobs:
       run: npm test tests/units/
       continue-on-error: false
 
-  # ========================================
   # INTEGRATION TESTS (mit MongoDB)
-  # ========================================
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -88,9 +86,7 @@ jobs:
         name: integration-test-results
         path: test-results/
 
-  # ========================================
   # BUILD (läuft nur wenn Tests erfolgreich)
-  # ========================================
   build:
     name: Build Application
     runs-on: ubuntu-latest
@@ -200,9 +196,7 @@ jobs:
         echo ""
         echo "Azure Portal → Web App → Configuration → Application Settings"
 
-  # ========================================
   # SMOKE TESTS (nach Deployment)
-  # ========================================
   smoke-tests:
     name: Smoke Tests
     runs-on: ubuntu-latest
@@ -240,9 +234,7 @@ jobs:
 
 
 
-  # ========================================
   # LOAD TESTS mit k6 (optional)
-  # ========================================
   load-tests:
     name: Load Tests (k6)
     runs-on: ubuntu-latest
@@ -280,7 +272,7 @@ jobs:
     - name: Summary
       if: always()
       run: |
-        echo "📊 Load test completed. Check artifacts for detailed results."
+        echo "Load test completed. Check artifacts for detailed results."
         echo "Note: Test may show as failed if performance thresholds weren't met."
         echo "This doesn't necessarily mean the deployment failed."
 
