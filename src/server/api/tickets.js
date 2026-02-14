@@ -24,6 +24,7 @@ function istBeschreibungGueltig(beschreibung) {
   const bereinigt = beschreibung.trim();
   if (bereinigt.length < 3) return false;
   if (bereinigt.length > 100) return false;
+  return true;
 }
 
 
