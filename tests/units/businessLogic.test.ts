@@ -1,6 +1,6 @@
-// ============================================
+
 // UNIT TESTS - Business-Logik
-// ============================================
+
 // Diese Tests prüfen die Business-Logik der Ticketsystem-App
 
 import { describe, it, expect } from 'vitest';
@@ -11,9 +11,9 @@ import {
   sollKommentarfeldAnzeigen 
 } from '../../src/utils/ticketHelpers';
 
-// ============================================
+
 // STATUS-VALIDIERUNG
-// ============================================
+
 
 describe('istStatusGueltig', () => {
   
@@ -43,9 +43,8 @@ describe('istStatusGueltig', () => {
   });
 });
 
-// ============================================
+
 // PRIORITY-VALIDIERUNG
-// ============================================
 
 describe('istPriorityGueltig', () => {
   
@@ -72,9 +71,7 @@ describe('istPriorityGueltig', () => {
   });
 });
 
-// ============================================
 // TICKET SCHLIESSEN - LOGIC
-// ============================================
 
 describe('kannTicketSchliessen', () => {
   
@@ -148,9 +145,7 @@ describe('kannTicketSchliessen', () => {
   });
 });
 
-// ============================================
 // KOMMENTARFELD SICHTBARKEIT
-// ============================================
 
 describe('sollKommentarfeldAnzeigen', () => {
   
@@ -199,45 +194,6 @@ describe('sollKommentarfeldAnzeigen', () => {
     
     // ASSERT
     expect(ergebnis).toBe(true);
-    // ✅ Admin/Tech Support kann trotzdem kommentieren
+    // Admin/Tech Support kann trotzdem kommentieren
   });
 });
-
-// ============================================
-// ZUSAMMENFASSUNG
-// ============================================
-/*
- * Was testen wir hier?
- * 
- * 1. istStatusGueltig() - 4 Tests
- *    - Gültige Status: open, in_progress, closed
- *    - Ungültige Status werden abgelehnt
- *    - Case-sensitive
- * 
- * 2. istPriorityGueltig() - 4 Tests
- *    - Gültige Priorities: low, medium, high
- *    - Ungültige Priorities werden abgelehnt
- *    - Case-sensitive
- * 
- * 3. kannTicketSchliessen() - 6 Tests
- *    - Bereits geschlossene Tickets → false
- *    - Admin/Tech Support → true (alle Tickets)
- *    - User → true (nur eigene Tickets)
- *    - User → false (fremde Tickets)
- *    - Unbekannte Rollen → false
- * 
- * 4. sollKommentarfeldAnzeigen() - 4 Tests
- *    - Offene Tickets → immer anzeigen
- *    - Geschlossene Tickets ohne Permission → ausblenden
- *    - Geschlossene Tickets mit Permission → anzeigen
- * 
- * Warum sind das gute Unit-Tests?
- * ✅ Testen isolierte Business-Logik
- * ✅ Keine Dependencies (DB, API, UI)
- * ✅ Schnell (~1ms pro Test)
- * ✅ Leicht verständlich
- * ✅ Decken alle Szenarien ab
- * 
- * Ausführen:
- * npm test tests/units/businessLogic.test.ts
- */
