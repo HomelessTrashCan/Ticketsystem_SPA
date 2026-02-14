@@ -134,6 +134,9 @@ jobs:
         SESSION_SECRET: test-secret-for-ci-only
         JWT_SECRET: test-jwt-secret-for-ci-only
         NODE_ENV: test
+        GOOGLE_CLIENT_ID: dummy
+        GOOGLE_CLIENT_SECRET: dummy
+        GOOGLE_CALLBACK_URL: http://localhost:8080/api/auth/google/callback
       run: npm test tests/integrations/app.local.test.ts
       continue-on-error: false
 
