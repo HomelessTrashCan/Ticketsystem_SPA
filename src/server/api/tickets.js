@@ -5,6 +5,30 @@ import { PERMISSIONS, hasPermission } from '../rbac/roles.js';
 
 const router = express.Router();
 
+// ============================================
+// VALIDATION HELPERS (Server-seitig)
+// ============================================
+// Diese Validierungslogik entspricht ticketHelpers.ts
+// und ist mit Unit-Tests getestet!
+
+function istTitelGueltig(titel) {
+  if (!titel || typeof titel !== 'string') return false;
+  const bereinigt = titel.trim();
+  if (bereinigt.length < 3) return false;
+  if (bereinigt.length > 100) return false;
+  return true;
+}
+
+function istBeschreibungGueltig(beschreibung) {
+  if (!beschreibung || typeof beschreibung !== 'string') return false;
+  const bereinigt = beschreibung.trim();
+  if (bereinigt.length < 3) return false;
+  if (bereinigt.length > 100) return false;
+}
+
+
+
+
 async function getTicketsCollection() {
   const db = await connectDB();
   return db.collection('tickets');
@@ -142,9 +166,29 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const body = req.body;
+    
+    // Basis-Validierung
     if (!body || !body.title || !body.description) {
       return res.status(400).json({ error: 'Missing title or description' });
     }
+    
+    // Erweiterte Validierung mit Unit-getesteten Funktionen
+    if (!istTitelGueltig(body.title)) {
+      return res.status(400).json({ 
+        error: 'Invalid title',
+        details: 'Titel muss zwischen 3 und 100 Zeichen lang sein'
+      });
+    }
+
+
+  if (!istBeschreibungGueltig(body.description)) {
+      return res.status(400).json({ 
+        error: 'Invalid description',
+        details: 'Beschreibung muss zwischen 3 und 100 Zeichen lang sein'
+      });
+    }
+
+
     const col = await getTicketsCollection();
     
     // Sequentielle Ticket-Nummer generieren

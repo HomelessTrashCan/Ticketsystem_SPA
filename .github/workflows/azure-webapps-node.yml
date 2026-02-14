@@ -84,9 +84,7 @@ jobs:
       run: npm ci
 
     - name: Run unit tests
-      run: |
-        echo "Running unit tests..."
-        npm test tests/units/
+      run: npm test tests/units/
       continue-on-error: false
 
     - name: Upload test results
@@ -136,9 +134,7 @@ jobs:
         SESSION_SECRET: test-secret-for-ci-only
         JWT_SECRET: test-jwt-secret-for-ci-only
         NODE_ENV: test
-      run: |
-        echo "Running integration tests with MongoDB..."
-        npm test tests/integrations/
+      run: npm test tests/integrations/app.local.test.ts
       continue-on-error: false
 
     - name: Upload test results
@@ -265,48 +261,34 @@ jobs:
   # SMOKE TESTS (nach Deployment)
   # ========================================
   smoke-tests:
-    name: Smoke Tests (Post-Deployment)
+    name: Smoke Tests
     runs-on: ubuntu-latest
     needs: deploy
     steps:
-    - name: Wait for deployment to stabilize
-      run: |
-        echo "Waiting 30 seconds for deployment to stabilize..."
-        sleep 30
+    - uses: actions/checkout@v4
 
-    - name: Check application health
-      run: |
-        APP_URL="https://ticketsystemspa-cmhdbkcbexbgbhbj.switzerlandnorth-01.azurewebsites.net"
-        
-        echo "Testing health endpoint..."
-        HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $APP_URL/health)
-        if [ $HEALTH_STATUS -eq 200 ]; then
-          echo "✓ Health check passed (Status: $HEALTH_STATUS)"
-        else
-          echo "✗ Health check failed (Status: $HEALTH_STATUS)"
-          exit 1
-        fi
-        
-        echo "Testing homepage..."
-        HOME_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $APP_URL/)
-        if [ $HOME_STATUS -eq 200 ]; then
-          echo "✓ Homepage accessible (Status: $HOME_STATUS)"
-        else
-          echo "✗ Homepage not accessible (Status: $HOME_STATUS)"
-          exit 1
-        fi
-        
-        echo "Testing API endpoints..."
-        API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $APP_URL/api/agents)
-        if [ $API_STATUS -eq 200 ] || [ $API_STATUS -eq 401 ]; then
-          echo "✓ API endpoint accessible (Status: $API_STATUS)"
-        else
-          echo "✗ API endpoint failed (Status: $API_STATUS)"
-          exit 1
-        fi
-        
-        echo ""
-        echo "✅ All smoke tests passed!"
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Wait for deployment to stabilize
+      run: sleep 30
+
+    - name: Run smoke tests
+      run: npm test tests/integrations/app.remote.test.ts
+      continue-on-error: false
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: smoke-test-results
+        path: test-results/
 
   # ========================================
   # LOAD TESTS mit k6 (optional)

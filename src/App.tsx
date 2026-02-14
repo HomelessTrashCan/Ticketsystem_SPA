@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import { useAuth, getAuthHeaders } from "./context/AuthContext";
 import { Login } from "./components/Login";
 import { PERMISSIONS } from "./rbac/permissions";
+import { istTitelGueltig, istBeschreibungGueltig, istKommentarGueltig } from "./utils/ticketHelpers";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
@@ -729,7 +730,13 @@ function TicketDetail(props: {
                 className="btn"
                 onClick={() => {
                   const t = comment.trim();
-                  if (!t) return;
+                  
+                  // Validierung mit Unit-getesteter Funktion
+                  if (!istKommentarGueltig(t)) {
+                    alert('Kommentar darf nicht leer sein und maximal 500 Zeichen haben!');
+                    return;
+                  }
+                  
                   props.onAddComment(t);
                   setComment("");
                 }}
@@ -767,7 +774,24 @@ function NewTicketForm(props: { onCreate: (t: any) => void; agents: string[] }) 
         e.preventDefault();
         const t = title.trim();
         const d = description.trim();
-        if (!t || !d) return;
+        
+        
+        // Validierung mit Unit-getesteten Funktionen
+        if (!istTitelGueltig(t)) {
+          alert('Titel muss zwischen 3 und 100 Zeichen lang sein!');
+          return;
+        }
+        
+ if (!istBeschreibungGueltig(d)) {
+          alert('Beschreibung muss zwischen 3 und 100 Zeichen lang sein!');
+          return;
+        }
+
+
+        if (!istKommentarGueltig(k)) {
+          alert('Kommentar darf nicht leer sein!');
+          return;
+        }
         
         // Users only send title and description, backend sets requester/priority/assignee
         // Users with permissions can set additional fields
@@ -779,6 +803,7 @@ function NewTicketForm(props: { onCreate: (t: any) => void; agents: string[] }) 
         if (canAssign) {
           ticketData.assignee = assignee;
         }
+       
         
         props.onCreate(ticketData);
       }}
