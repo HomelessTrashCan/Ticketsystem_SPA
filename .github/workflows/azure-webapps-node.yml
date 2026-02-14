@@ -1,5 +1,39 @@
 # This workflow will build and push a node.js application to an Azure Web App when a commit is pushed to your default branch.
 #
+# Pipeline Flow:
+# ┌─────────────────┐
+# │  Push/Dispatch  │
+# └────────┬────────┘
+#          │
+#    ┌─────┴─────┐
+#    │           │
+#    v           v
+# ┌──────┐   ┌──────────────┐
+# │ Unit │   │ Integration  │
+# │Tests │   │    Tests     │
+# └──┬───┘   └──────┬───────┘
+#    │              │
+#    └──────┬───────┘
+#           v
+#       ┌───────┐
+#       │ Build │
+#       └───┬───┘
+#           v
+#       ┌────────┐
+#       │ Deploy │
+#       └───┬────┘
+#           v
+#       ┌───────────┐
+#       │   Smoke   │
+#       │   Tests   │
+#       └─────┬─────┘
+#             v
+#       ┌──────────┐
+#       │   Load   │
+#       │  Tests   │
+#       │  (k6)    │
+#       └──────────┘
+#
 # This workflow assumes you have already created the target Azure App Service web app.
 # For instructions see https://docs.microsoft.com/en-us/azure/app-service/quickstart-nodejs?tabs=linux&pivots=development-environment-cli
 #
@@ -31,7 +65,11 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  # ========================================
+  # UNIT TESTS (ohne Datenbank)
+  # ========================================
+  unit-tests:
+    name: Unit Tests
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -42,23 +80,109 @@ jobs:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
 
-    - name: npm install, build and prune (skip tests for deployment)
-      # run in repository root (workflow already lives in project root)
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run unit tests
+      run: |
+        echo "Running unit tests..."
+        npm test tests/units/
+      continue-on-error: false
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: unit-test-results
+        path: test-results/
+
+  # ========================================
+  # INTEGRATION TESTS (mit MongoDB)
+  # ========================================
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    
+    # MongoDB Service Container
+    services:
+      mongodb:
+        image: mongo:7
+        env:
+          MONGO_INITDB_ROOT_USERNAME: testuser
+          MONGO_INITDB_ROOT_PASSWORD: testpass
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run integration tests
+      env:
+        MONGO_URI: mongodb://testuser:testpass@localhost:27017/test?authSource=admin
+        SESSION_SECRET: test-secret-for-ci-only
+        JWT_SECRET: test-jwt-secret-for-ci-only
+        NODE_ENV: test
+      run: |
+        echo "Running integration tests with MongoDB..."
+        npm test tests/integrations/
+      continue-on-error: false
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: integration-test-results
+        path: test-results/
+
+  # ========================================
+  # BUILD (läuft nur wenn Tests erfolgreich)
+  # ========================================
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]  # Wartet auf beide Test-Jobs
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: npm install and build
       working-directory: .
       run: |
-        # install dev+prod deps so TypeScript and other build tools are available
+        echo "Installing dependencies..."
         npm ci
+        
+        echo "Building application..."
         npm run build --if-present
-        # Note: Tests are skipped in deployment workflow as they require MongoDB
-        # Tests should run in separate CI workflow with MongoDB service
+        
         # Verify dist folder exists
         if [ ! -d "dist" ]; then
           echo "ERROR: dist folder not found after build!"
           exit 1
         fi
+        
         echo "Build successful, dist folder contents:"
         ls -la dist/
-        # remove dev dependencies before packaging to keep artifact small
+        
+        # Remove dev dependencies to keep artifact small
         npm prune --production
 
     - name: Upload artifact for deployment job
@@ -69,6 +193,7 @@ jobs:
         include-hidden-files: true
 
   deploy:
+    name: Deploy to Azure
     permissions:
       contents: none
     runs-on: ubuntu-latest
@@ -76,7 +201,10 @@ jobs:
     environment:
       name: 'Development'
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-
+    
+    outputs:
+      webapp-url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+    
     steps:
     - name: Download artifact from build job
       uses: actions/download-artifact@v4
@@ -132,4 +260,95 @@ jobs:
         echo "  - NODE_ENV=production"
         echo ""
         echo "Azure Portal → Web App → Configuration → Application Settings"
+
+  # ========================================
+  # SMOKE TESTS (nach Deployment)
+  # ========================================
+  smoke-tests:
+    name: Smoke Tests (Post-Deployment)
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+    - name: Wait for deployment to stabilize
+      run: |
+        echo "Waiting 30 seconds for deployment to stabilize..."
+        sleep 30
+
+    - name: Check application health
+      run: |
+        APP_URL="https://ticketsystemspa-cmhdbkcbexbgbhbj.switzerlandnorth-01.azurewebsites.net"
+        
+        echo "Testing health endpoint..."
+        HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $APP_URL/health)
+        if [ $HEALTH_STATUS -eq 200 ]; then
+          echo "✓ Health check passed (Status: $HEALTH_STATUS)"
+        else
+          echo "✗ Health check failed (Status: $HEALTH_STATUS)"
+          exit 1
+        fi
+        
+        echo "Testing homepage..."
+        HOME_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $APP_URL/)
+        if [ $HOME_STATUS -eq 200 ]; then
+          echo "✓ Homepage accessible (Status: $HOME_STATUS)"
+        else
+          echo "✗ Homepage not accessible (Status: $HOME_STATUS)"
+          exit 1
+        fi
+        
+        echo "Testing API endpoints..."
+        API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $APP_URL/api/agents)
+        if [ $API_STATUS -eq 200 ] || [ $API_STATUS -eq 401 ]; then
+          echo "✓ API endpoint accessible (Status: $API_STATUS)"
+        else
+          echo "✗ API endpoint failed (Status: $API_STATUS)"
+          exit 1
+        fi
+        
+        echo ""
+        echo "✅ All smoke tests passed!"
+
+  # ========================================
+  # LOAD TESTS mit k6 (optional)
+  # ========================================
+  load-tests:
+    name: Load Tests (k6)
+    runs-on: ubuntu-latest
+    needs: smoke-tests
+    # Optional: Nur manuell oder bei bestimmten Branches ausführen
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install k6
+      run: |
+        sudo gpg -k
+        sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+    
+    - name: Run k6 load test
+      run: |
+        echo "Running k6 load test against production..."
+        k6 run tests/k6.test.js \
+          --vus 50 \
+          --duration 2m \
+          --out json=k6-results.json
+      continue-on-error: true  # Nicht fehlschlagen wenn Thresholds nicht erreicht
+    
+    - name: Upload k6 results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: k6-load-test-results
+        path: k6-results.json
+    
+    - name: Summary
+      if: always()
+      run: |
+        echo "📊 Load test completed. Check artifacts for detailed results."
+        echo "Note: Test may show as failed if performance thresholds weren't met."
+        echo "This doesn't necessarily mean the deployment failed."
+

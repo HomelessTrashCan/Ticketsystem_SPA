@@ -1,6 +1,6 @@
 # Tests
 
-Diese Tests verwenden [Vitest](https://vitest.dev/) und testen die MongoDB-basierten APIs.
+Diese Tests verwenden [Vitest](https://vitest.dev/) für Unit- und Integrationstests und [k6](https://k6.io/) für Lasttests.
 
 ## Voraussetzungen
 
@@ -19,7 +19,7 @@ Bevor Sie die Tests ausführen:
 
 ## Tests ausführen
 
-### Alle Tests ausführen
+### Alle Unit- und Integration-Tests ausführen
 ```powershell
 npm test
 ```
@@ -35,6 +35,16 @@ npx vitest tests/units/agents.test.ts
 npx vitest tests/integrations/tickets.test.ts
 ```
 
+### k6 Lasttests
+**Wichtig:** k6 Tests erfordern die [k6 CLI Installation](https://k6.io/docs/getting-started/installation/).
+
+Nach der Installation:
+```powershell
+npm run test:k6
+# oder direkt:
+k6 run tests/k6.test.js
+```
+
 ## Test-Struktur
 
 ### Unit Tests (`tests/units/`)
@@ -46,6 +56,9 @@ npx vitest tests/integrations/tickets.test.ts
   - POST /api/tickets
   - PUT /api/tickets/:id
   - DELETE /api/tickets/:id
+
+### Lasttests
+- `k6.test.js` - k6 Lasttest (100 Nutzer über 5 Minuten)
 
 ## Was wird getestet?
 
