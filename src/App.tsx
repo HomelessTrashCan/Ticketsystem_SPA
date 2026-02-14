@@ -787,12 +787,12 @@ function NewTicketForm(props: { onCreate: (t: any) => void; agents: string[] }) 
           return;
         }
 
-
-        if (!istKommentarGueltig(k)) {
+/*
+        if (!istKommentarGueltig(d)) {
           alert('Kommentar darf nicht leer sein!');
           return;
         }
-        
+   */     
         // Users only send title and description, backend sets requester/priority/assignee
         // Users with permissions can set additional fields
         const ticketData: any = { title: t, description: d };
