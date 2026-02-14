@@ -857,7 +857,6 @@ function NewTicketForm(props: { onCreate: (t: any) => void; agents: string[] }) 
           Ticket erstellen
         </button>
       </div>
-      <div className="hint">* Pflichtfelder. Speicherung ist nur im Browser-State.</div>
     </form>
   );
 }

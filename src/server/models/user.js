@@ -1,4 +1,4 @@
-import { getDB } from '../db.js';
+import { getDB } from '../db/db.js';
 
 const COLLECTION_NAME = 'users';
 

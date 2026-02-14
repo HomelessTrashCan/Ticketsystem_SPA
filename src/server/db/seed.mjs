@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { connectDB, getClient } from './db.js';
-import { agents as agentsList } from '../data/agents.js';
+import { agents as agentsList } from '../../data/agents.js';
 
 async function main() {
   const file = path.join(process.cwd(), 'src', 'data', 'tickethistory.json');
