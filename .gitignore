@@ -29,6 +29,14 @@ MONGODB_SETUP.md
 .env
 .env.local
 .env.*.local
+.env.development
+.env.test
+.env.production
+.env.old
+.deployment.old
+
+# Keep .env.example in git
+!.env.example
 
 # Sensitive documentation (if created locally)
 **/CREDENTIALS.md

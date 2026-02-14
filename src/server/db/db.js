@@ -23,10 +23,11 @@ let db = null;
 export async function connectDB() {
   try {
     await client.connect();
-    // Use 'TicketSystem' database (matches existing DB in Atlas)
-    db = client.db('TicketSystem');
+    // Nutze die Datenbank aus der MONGO_URI (zwischen letztem / und ?)
+    db = client.db(); // Verwendet automatisch die DB aus der Connection String
+    const dbName = db.databaseName;
     console.log('Connected to MongoDB successfully');
-    console.log('Using database: TicketSystem');
+    console.log(`Using database: ${dbName}`);
     return db;
   } catch (err) {
     console.error('Failed to connect to MongoDB:', err.message);
