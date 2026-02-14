@@ -3,9 +3,9 @@
 // Startet den Express Server (importiert app.js)
 // ============================================
 
-import 'dotenv/config';
+import './config/env.js'; // Lädt automatisch die richtige .env-Datei
 import { app } from './app.js';
-import { connectDB } from './db.js';
+import { connectDB } from './db/db.js';
 
 // Azure setzt PORT automatisch
 const PORT = process.env.PORT || 8080;
