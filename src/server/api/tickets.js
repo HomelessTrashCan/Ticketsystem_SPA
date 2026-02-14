@@ -102,7 +102,7 @@ router.get('/', async (req, res) => {
       assignee, 
       search,
       page = 1,
-      limit = 50
+      limit = 5
     } = req.query;
     
     // Filter erweitern

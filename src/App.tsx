@@ -77,6 +77,7 @@ export default function App() {
 }
 
 function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: () => void }) {
+  const { hasPermission } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
   const [selectedId, setSelectedId] = useState<string>(initialTickets[0]?.id ?? "");
   const [filters, setFilters] = useState<Filters>({
@@ -88,22 +89,29 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
   });
   const [showNew, setShowNew] = useState(false);
   const [agents, setAgents] = useState<string[]>([]);
+
+  // Permission checks
+  const canViewAllTickets = hasPermission(PERMISSIONS.TICKET_VIEW_ALL);
   
   // State für Pagination
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 5,
     total: 0,
     totalPages: 0
   });
 
+  // Tickets laden (mit Pagination)
   useEffect(() => {
     const apiBase = API_BASE;
     let mounted = true;
 
     (async () => {
       try {
-        const res = await fetch(`${apiBase}/api/tickets`, {
+        // Query-Parameter für Pagination hinzufügen
+        const url = `${apiBase}/api/tickets?page=${pagination.page}&limit=${pagination.limit}`;
+
+        const res = await fetch(url, {
           headers: getAuthHeaders(),
         });
         if (!res.ok) {
@@ -111,16 +119,16 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
           return;
         }
         const response = await res.json();
-        
+
         // Handle paginated response
         const tickets = response.data || response;
         const paginationData = response.pagination;
-        
+
         if (!mounted) return;
         if (Array.isArray(tickets)) {
           setTickets(tickets);
           setSelectedId(tickets[0]?.id ?? "");
-          
+
           if (paginationData) {
             setPagination(paginationData);
           }
@@ -133,7 +141,7 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [pagination.page, pagination.limit]); // Re-fetch when page or limit changes
 
   // Agents vom Backend laden
   useEffect(() => {
@@ -447,30 +455,36 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
               </label>
             </div>
 
-            <label className="field">
-              <div className="label">Assignee</div>
-              <select
-                className="select"
-                value={filters.agent}
-                onChange={(e) => setFilters((f) => ({ ...f, agent: e.target.value as any }))}
-              >
-                <option value="all">Alle</option>
-                {agents.map((agent) => (
-                  <option key={agent} value={agent}>
-                    {agent}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {/* Nur für User mit TICKET_VIEW_ALL Permission */}
+            {canViewAllTickets && (
+              <label className="field">
+                <div className="label">Zugewiesener Agent:</div>
+                <select
+                  className="select"
+                  value={filters.agent}
+                  onChange={(e) => setFilters((f) => ({ ...f, agent: e.target.value as any }))}
+                >
+                  <option value="all">Alle</option>
+                  {agents.map((agent) => (
+                    <option key={agent} value={agent}>
+                      {agent}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
 
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={filters.onlyMine}
-                onChange={(e) => setFilters((f) => ({ ...f, onlyMine: e.target.checked }))}
-              />
-              <span>Nur eigene Tickets (Assignee = {currentUser})</span>
-            </label>
+            {/* Nur für User mit TICKET_VIEW_ALL Permission */}
+            {canViewAllTickets && (
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={filters.onlyMine}
+                  onChange={(e) => setFilters((f) => ({ ...f, onlyMine: e.target.checked }))}
+                />
+                <span>Nur eigene Tickets (Zugewiesener Agent: = {currentUser})</span>
+              </label>
+            )}
 
             <button
               className="btn filter-reset-btn"
@@ -508,7 +522,7 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
                   <div className="liMeta">
                     <PriorityPill priority={t.priority} />
                     <span className="dot">•</span>
-                    <span className="muted">Updated {formatDate(t.updatedAt)}</span>
+                    <span className="muted">Aktualisiert {formatDate(t.updatedAt)}</span>
                   </div>
                 </button>
               ))}
@@ -621,7 +635,7 @@ function TicketDetail(props: {
               onClick={() => props.onStatusChange('closed')} 
               title="Ticket schließen"
             >
-              Ticket schließen
+              Ticket schliessen
             </button>
           )}
         </div>
@@ -636,10 +650,10 @@ function TicketDetail(props: {
         <div className="card">
           <div className="cardTitle">Details</div>
           <div className="kv">
-            <div className="k">Requester</div>
+            <div className="k">Ersteller</div>
             <div className="v">{ticket.requester}</div>
 
-            <div className="k">Assignee</div>
+            <div className="k">Zugewiesener Agent</div>
             <div className="v">
               {/* Only users with TICKET_ASSIGN permission can change assignee */}
               {canAssign ? (
@@ -648,7 +662,7 @@ function TicketDetail(props: {
                   value={ticket.assignee ?? ""}
                   onChange={(e) => props.onAssigneeChange(e.target.value)}
                 >
-                  <option value="">-- Unassigned --</option>
+                  <option value="">Keine Zuweisung</option>
                   {props.agents.map((agent) => (
                     <option key={agent} value={agent}>
                       {agent}
@@ -831,7 +845,7 @@ function NewTicketForm(props: { onCreate: (t: any) => void; agents: string[] }) 
           </label>
 
           <label className="field">
-            <div className="label">Requester</div>
+            <div className="label">Ersteller</div>
             <input className="input" value={requester} onChange={(e) => setRequester(e.target.value)} />
           </label>
         </div>
@@ -840,9 +854,9 @@ function NewTicketForm(props: { onCreate: (t: any) => void; agents: string[] }) 
       {/* Only users with TICKET_ASSIGN permission can assign tickets */}
       {canAssign && (
         <label className="field">
-          <div className="label">Assignee</div>
+          <div className="label">Zugewiesener Agent</div>
           <select className="select" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-            <option value="">-- Unassigned --</option>
+            <option value="">Keine Zuweisung</option>
             {props.agents.map((agent) => (
               <option key={agent} value={agent}>
                 {agent}
