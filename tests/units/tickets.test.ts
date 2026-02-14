@@ -90,6 +90,38 @@ describe('istTitelGueltig', () => {
     expect(ergebnis).toBe(true);
     // Nach trim() ist "Test" = 4 Zeichen → gültig!
   });
+
+  // ============================================
+  // BOUNDARY TESTS (Grenzwert-Tests)
+  // ============================================
+  // Best Practice: Teste exakt AN der Grenze!
+  // Wenn die Regel "mindestens 3" ist, teste 2, 3 und 4.
+
+  it('sollte false zurückgeben für exakt 2 Zeichen (unter der Grenze)', () => {
+    const zwei_zeichen = 'AB';
+    expect(istTitelGueltig(zwei_zeichen)).toBe(false);
+  });
+
+  it('sollte true zurückgeben für exakt 3 Zeichen (untere Grenze)', () => {
+    const drei_zeichen = 'ABC';
+    expect(istTitelGueltig(drei_zeichen)).toBe(true);
+  });
+
+  it('sollte true zurückgeben für exakt 100 Zeichen (obere Grenze)', () => {
+    const hundert_zeichen = 'A'.repeat(100);
+    expect(istTitelGueltig(hundert_zeichen)).toBe(true);
+  });
+
+  it('sollte false zurückgeben für exakt 101 Zeichen (über der Grenze)', () => {
+    const hunderteins_zeichen = 'A'.repeat(101);
+    expect(istTitelGueltig(hunderteins_zeichen)).toBe(false);
+  });
+
+  it('sollte false zurückgeben wenn Titel nur aus Leerzeichen besteht', () => {
+    // Nach trim() bleibt ein leerer String übrig → ungültig
+    const nur_leerzeichen = '     ';
+    expect(istTitelGueltig(nur_leerzeichen)).toBe(false);
+  });
 });
 
 describe('istBeschreibungGueltig', () => {
@@ -124,6 +156,27 @@ describe('istBeschreibungGueltig', () => {
     const ergebnis = istBeschreibungGueltig(zu_lang);
 
     expect(ergebnis).toBe(false);
+  });
+
+  // BOUNDARY TESTS
+  it('sollte false zurückgeben für exakt 2 Zeichen (unter der Grenze)', () => {
+    expect(istBeschreibungGueltig('AB')).toBe(false);
+  });
+
+  it('sollte true zurückgeben für exakt 3 Zeichen (untere Grenze)', () => {
+    expect(istBeschreibungGueltig('ABC')).toBe(true);
+  });
+
+  it('sollte true zurückgeben für exakt 100 Zeichen (obere Grenze)', () => {
+    expect(istBeschreibungGueltig('A'.repeat(100))).toBe(true);
+  });
+
+  it('sollte false zurückgeben für exakt 101 Zeichen (über der Grenze)', () => {
+    expect(istBeschreibungGueltig('A'.repeat(101))).toBe(false);
+  });
+
+  it('sollte false zurückgeben wenn Beschreibung nur aus Leerzeichen besteht', () => {
+    expect(istBeschreibungGueltig('     ')).toBe(false);
   });
 });
 
@@ -189,6 +242,15 @@ describe('istKommentarGueltig', () => {
     // ASSERT: Sollte gültig sein (keine Mindestlänge bei Kommentaren)
     expect(ergebnis).toBe(true);
   });
-}
-);
+
+  // BOUNDARY TESTS
+  it('sollte false zurückgeben für exakt 501 Zeichen (über der Grenze)', () => {
+    expect(istKommentarGueltig('A'.repeat(501))).toBe(false);
+  });
+
+  it('sollte true zurückgeben für einen Kommentar mit Leerzeichen am Rand', () => {
+    // Nach trim() bleibt "Hallo" → gültig
+    expect(istKommentarGueltig('  Hallo  ')).toBe(true);
+  });
+});
 
