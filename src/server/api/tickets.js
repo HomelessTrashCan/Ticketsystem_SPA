@@ -1,5 +1,5 @@
 import express from 'express';
-import { connectDB, getClient } from '../db.js';
+import { connectDB, getClient } from '../db/db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
 import { PERMISSIONS, hasPermission } from '../rbac/roles.js';
 
