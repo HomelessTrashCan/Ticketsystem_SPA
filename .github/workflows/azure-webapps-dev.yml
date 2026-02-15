@@ -120,13 +120,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: node-app
-        path: |
-          dist/
-          src/server/
-          package.json
-          package-lock.json
-          web.config
-          node_modules/
+        path: ./
         include-hidden-files: true
 
   deploy:
