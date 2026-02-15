@@ -1,7 +1,7 @@
 name: Deploy to Azure Production
 on:
   push:
-    branches: [ "develop" ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 env:
@@ -174,8 +174,8 @@ jobs:
       id: deploy-to-webapp
       uses: azure/webapps-deploy@v3
       with:
-        app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        app-name: ${{ secrets.AZURE_WEBAPPPROD_NAME }}
+        publish-profile: ${{ secrets.AZURE_WEBAPPPROD_PUBLISH_PROFILE }}
         package: ./
     
     - name: 'Configure App Settings'
@@ -187,7 +187,7 @@ jobs:
         echo "  - SESSION_SECRET (Zufälliger String, min. 32 Zeichen)"
         echo "  - JWT_SECRET (Zufälliger String, min. 32 Zeichen)"
         echo "  - FRONTEND_URL (URL der deployed App, z.B. https://ihre-app.azurewebsites.net)"
-        echo "  - NODE_ENV=development"
+        echo "  - NODE_ENV=production"
         echo ""
         echo "Azure Portal → Web App → Configuration → Application Settings"
 
