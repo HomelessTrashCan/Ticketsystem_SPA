@@ -1,4 +1,4 @@
-name: Deploy to Azure Development WebApp
+name: Deploy to Azure Development
 on:
   push:
     branches: [ "develop" ]
@@ -211,19 +211,14 @@ jobs:
     - name: Wait for deployment to stabilize
       run: |
         URL="${{ needs.deploy.outputs.webapp-url }}/api/health"
-        echo "Health check URL: $URL"
-        if [ -z "${{ needs.deploy.outputs.webapp-url }}" ]; then
-          echo "ERROR: webapp-url output is empty!"
-          exit 1
+          for i in $(seq 1 30); do
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+        if [ "$STATUS" = "200" ]; then
+          echo "App is ready after attempt $i"
+          exit 0
         fi
-        for i in $(seq 1 30); do
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL" 2>/dev/null || true)
-          if [ "$STATUS" = "200" ]; then
-            echo "App is ready after attempt $i"
-            exit 0
-          fi
-          echo "Attempt $i: Status $STATUS, waiting 10s..."
-          sleep 10
+        echo "Attempt $i: Status $STATUS, waiting 10s..."
+        sleep 10
         done
         echo "App not ready after 30 attempts"
         exit 1
