@@ -92,6 +92,7 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
 
   // Permission checks
   const canViewAllTickets = hasPermission(PERMISSIONS.TICKET_VIEW_ALL);
+  const canAssignTickets = hasPermission(PERMISSIONS.TICKET_ASSIGN);
   
   // State für Pagination
   const [pagination, setPagination] = useState({
@@ -224,6 +225,7 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
 
     // UI sofort aktualisieren
     setTickets((prev) => [optimisticTicket, ...prev]);
+    setPagination((p) => ({ ...p, total: p.total + 1, totalPages: Math.ceil((p.total + 1) / p.limit) }));
     setSelectedId(tempId);
     setShowNew(false);
 
@@ -403,9 +405,11 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
 
         <div className="topbarActions">
           <span className="user-info">👤 {currentUser}</span>
-          <button className="btn" onClick={() => setShowNew(true)}>
-            + Neues Ticket
-          </button>
+          {hasPermission(PERMISSIONS.TICKET_CREATE) && (
+            <button className="btn" onClick={() => setShowNew(true)}>
+              + Neues Ticket
+            </button>
+          )}
           <button className="btn" onClick={onLogout}>
             Abmelden
           </button>
@@ -476,8 +480,8 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
               </label>
             )}
 
-            {/* Nur für User mit TICKET_VIEW_ALL Permission */}
-            {canViewAllTickets && (
+            {/* Nur für User die Tickets zugewiesen bekommen können */}
+            {canAssignTickets && (
               <label className="check">
                 <input
                   type="checkbox"
@@ -508,7 +512,7 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
           </div>
 
           <div className="panel">
-            <div className="panelTitle">Tickets ({filtered.length})</div>
+            <div className="panelTitle">Tickets ({pagination.total})</div>
 
             <div className="list">
               {filtered.map((t) => (
@@ -605,6 +609,7 @@ function TicketDetail(props: {
   const canAssign = hasPermission(PERMISSIONS.TICKET_ASSIGN);
   const canChangeStatusAll = hasPermission(PERMISSIONS.STATUS_CHANGE_ALL);
   const canCloseOwn = hasPermission(PERMISSIONS.TICKET_CLOSE_OWN);
+  const canComment = hasPermission(PERMISSIONS.COMMENT_ADD);
   const canCommentOnClosed = hasPermission(PERMISSIONS.COMMENT_ADD_CLOSED);
 
   return (
@@ -734,7 +739,7 @@ function TicketDetail(props: {
         </div>
 
         {/* Only allow comments on open tickets, or closed if user has permission */}
-        {(ticket.status !== 'closed' || canCommentOnClosed) ? (
+        {canComment && (ticket.status !== 'closed' || canCommentOnClosed) && (
           <div className="commentBox">
             <textarea
               className="textarea"
@@ -747,13 +752,13 @@ function TicketDetail(props: {
                 className="btn"
                 onClick={() => {
                   const t = comment.trim();
-                  
+
                   // Validierung mit Unit-getesteter Funktion
                   if (!istKommentarGueltig(t)) {
                     alert('Kommentar darf nicht leer sein und maximal 500 Zeichen haben!');
                     return;
                   }
-                  
+
                   props.onAddComment(t);
                   setComment("");
                 }}
@@ -762,7 +767,8 @@ function TicketDetail(props: {
               </button>
             </div>
           </div>
-        ) : (
+        )}
+        {canComment && ticket.status === 'closed' && !canCommentOnClosed && (
           <div className="empty" style={{ marginTop: '16px', fontStyle: 'italic', color: '#666' }}>
             Dieses Ticket ist geschlossen. Keine weiteren Kommentare möglich.
           </div>

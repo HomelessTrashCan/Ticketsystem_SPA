@@ -94,6 +94,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   ],
   
   [ROLES.READONLY]: [
+    PERMISSIONS.TICKET_VIEW_ALL,
     PERMISSIONS.TICKET_VIEW_OWN,
     PERMISSIONS.PRIORITY_VIEW,
   ],

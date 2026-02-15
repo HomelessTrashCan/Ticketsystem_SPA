@@ -90,55 +90,81 @@ router.use(requireAuth);
 router.get('/', async (req, res) => {
   try {
     const col = await getTicketsCollection();
-    
-    // Basis-Filter (RBAC bleibt)
+
+    // RBAC: Nur eigene Tickets für User ohne TICKET_VIEW_ALL
     const canViewAll = hasPermission(req.user, PERMISSIONS.TICKET_VIEW_ALL);
-    const baseFilter = canViewAll ? {} : { createdBy: req.user.id };
-    
+
+    // Sicherheitscheck: Wenn User nicht alle sehen darf, MUSS eine gültige ID vorhanden sein
+    if (!canViewAll && !req.user.id) {
+      console.error('RBAC SAFETY: User without TICKET_VIEW_ALL has no id!', req.user);
+      return res.status(403).json({ error: 'User identity could not be verified' });
+    }
+
+    // Basis-Filter: Für eingeschränkte User nach requester (E-Mail) ODER createdBy (ID) filtern
+    // Dies stellt sicher, dass sowohl geseedete Tickets (nur requester) als auch
+    // API-erstellte Tickets (mit createdBy) korrekt gefiltert werden
+    const baseFilter = canViewAll
+      ? {}
+      : { $or: [{ createdBy: req.user.id }, { requester: req.user.email }] };
+
+    console.log('GET /tickets - user:', req.user.email, 'role:', req.user.role, 'canViewAll:', canViewAll, 'filter:', JSON.stringify(baseFilter));
+
     // Query-Parameter auslesen
-    const { 
-      status, 
-      priority, 
-      assignee, 
+    const {
+      status,
+      priority,
+      assignee,
       search,
       page = 1,
       limit = 5
     } = req.query;
-    
-    // Filter erweitern
+
+    // Filter erweitern (baseFilter als Basis)
     const filter = { ...baseFilter };
-    
+
     if (status && status !== 'all') {
       filter.status = status;
     }
-    
+
     if (priority && priority !== 'all') {
       filter.priority = priority;
     }
-    
+
     if (assignee && assignee !== 'all') {
       filter.assignee = assignee;
     }
-    
-    // Text-Suche (benötigt MongoDB Text Index)
+
+    // Text-Suche
     if (search && search.trim()) {
-      filter.$or = [
-        { id: { $regex: search, $options: 'i' } },
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { requester: { $regex: search, $options: 'i' } },
-        { assignee: { $regex: search, $options: 'i' } }
-      ];
+      // Wenn baseFilter bereits $or enthält, müssen wir $and verwenden
+      const searchFilter = {
+        $or: [
+          { id: { $regex: search, $options: 'i' } },
+          { title: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } },
+          { requester: { $regex: search, $options: 'i' } },
+          { assignee: { $regex: search, $options: 'i' } }
+        ]
+      };
+
+      if (filter.$or) {
+        // baseFilter hat bereits $or → umwandeln in $and
+        const existingOr = filter.$or;
+        delete filter.$or;
+        filter.$and = [{ $or: existingOr }, searchFilter];
+      } else {
+        filter.$or = searchFilter.$or;
+      }
     }
-    
+
     // Pagination berechnen
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
-    
+
     // Zähle total (für Pagination Info)
     const total = await col.countDocuments(filter);
-    
+
     // Hole gefilterte + paginierte Tickets
     const tickets = await col
       .find(filter)
@@ -146,7 +172,9 @@ router.get('/', async (req, res) => {
       .skip(skip)
       .limit(limitNum)
       .toArray();
-    
+
+    console.log('GET /tickets - total:', total, 'returned:', tickets.length, 'page:', pageNum);
+
     // Response mit Pagination-Metadaten
     res.json({
       data: tickets,
