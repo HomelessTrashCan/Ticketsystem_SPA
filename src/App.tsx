@@ -102,60 +102,52 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
     totalPages: 0
   });
 
-  // Tickets laden (mit Pagination + serverseitigen Filtern)
-  useEffect(() => {
-    const apiBase = API_BASE;
-    let mounted = true;
+  // Tickets vom Server laden (mit Pagination + serverseitigen Filtern)
+  async function fetchTickets() {
+    try {
+      const params = new URLSearchParams();
+      params.set("page", String(pagination.page));
+      params.set("limit", String(pagination.limit));
 
-    (async () => {
-      try {
-        // Query-Parameter für Pagination und Filter
-        const params = new URLSearchParams();
-        params.set("page", String(pagination.page));
-        params.set("limit", String(pagination.limit));
-
-        if (filters.status !== "all") params.set("status", filters.status);
-        if (filters.priority !== "all") params.set("priority", filters.priority);
-        if (filters.onlyMine) {
-          params.set("assignee", currentUser);
-        } else if (filters.agent !== "all") {
-          params.set("assignee", filters.agent);
-        }
-        if (filters.q) params.set("search", filters.q);
-
-        const url = `${apiBase}/api/tickets?${params.toString()}`;
-
-        const res = await fetch(url, {
-          headers: getAuthHeaders(),
-        });
-        if (!res.ok) {
-          console.warn("Could not fetch tickets", res.status);
-          return;
-        }
-        const response = await res.json();
-
-        // Handle paginated response
-        const tickets = response.data || response;
-        const paginationData = response.pagination;
-
-        if (!mounted) return;
-        if (Array.isArray(tickets)) {
-          setTickets(tickets);
-          setSelectedId(tickets[0]?.id ?? "");
-
-          if (paginationData) {
-            setPagination(paginationData);
-          }
-        }
-      } catch (err) {
-        console.warn("Failed to load tickets from", apiBase, err);
+      if (filters.status !== "all") params.set("status", filters.status);
+      if (filters.priority !== "all") params.set("priority", filters.priority);
+      if (filters.onlyMine) {
+        params.set("assignee", currentUser);
+      } else if (filters.agent !== "all") {
+        params.set("assignee", filters.agent);
       }
-    })();
+      if (filters.q) params.set("search", filters.q);
 
-    return () => {
-      mounted = false;
-    };
-  }, [pagination.page, pagination.limit, filters, currentUser]); // Re-fetch when page, limit, or filters change
+      const url = `${API_BASE}/api/tickets?${params.toString()}`;
+
+      const res = await fetch(url, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) {
+        console.warn("Could not fetch tickets", res.status);
+        return;
+      }
+      const response = await res.json();
+
+      const tickets = response.data || response;
+      const paginationData = response.pagination;
+
+      if (Array.isArray(tickets)) {
+        setTickets(tickets);
+        setSelectedId(tickets[0]?.id ?? "");
+
+        if (paginationData) {
+          setPagination(paginationData);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to load tickets from", API_BASE, err);
+    }
+  }
+
+  useEffect(() => {
+    fetchTickets();
+  }, [pagination.page, pagination.limit, filters, currentUser]);
 
   // Agents vom Backend laden
   useEffect(() => {
@@ -223,7 +215,7 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
       comments: [],
     };
 
-    // UI sofort aktualisieren
+    // UI sofort aktualisieren (optimistic)
     setTickets((prev) => [optimisticTicket, ...prev]);
     setPagination((p) => ({ ...p, total: p.total + 1, totalPages: Math.ceil((p.total + 1) / p.limit) }));
     setSelectedId(tempId);
@@ -238,16 +230,14 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
       });
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const created: Ticket = await res.json();
-      
-      // Ersetze optimistisches Ticket mit Server-Response
-      setTickets((prev) => 
-        prev.map((t) => (t.id === tempId ? created : t))
-      );
+
+      // Nach Erstellung: Liste vom Server neu laden für korrekte Pagination/Filter-Zahlen
+      await fetchTickets();
       setSelectedId(created.id);
     } catch (err) {
       console.error("Persist to server failed:", err);
       // Bei Fehler: Behalte das optimistische Ticket mit lokalem Prefix
-      setTickets((prev) => 
+      setTickets((prev) =>
         prev.map((t) => (t.id === tempId ? { ...t, id: `local-${uid('T')}` } : t))
       );
     }
@@ -284,8 +274,8 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
 
     //Optimistic UI Update
     const previousTicket = { ...t };
-    const newAssignee = assignee.trim() ? assignee.trim() : undefined;
-    upsertTicket({ ...t, assignee: newAssignee, updatedAt: nowIso() });
+    const newAssignee = assignee.trim() || null;
+    upsertTicket({ ...t, assignee: newAssignee ?? undefined, updatedAt: nowIso() });
 
     try {
       const res = await fetch(`${API_BASE}/api/tickets/${id}`, {
