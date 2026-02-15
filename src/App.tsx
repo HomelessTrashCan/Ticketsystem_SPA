@@ -101,15 +101,28 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
     totalPages: 0
   });
 
-  // Tickets laden (mit Pagination)
+  // Tickets laden (mit Pagination + serverseitigen Filtern)
   useEffect(() => {
     const apiBase = API_BASE;
     let mounted = true;
 
     (async () => {
       try {
-        // Query-Parameter für Pagination hinzufügen
-        const url = `${apiBase}/api/tickets?page=${pagination.page}&limit=${pagination.limit}`;
+        // Query-Parameter für Pagination und Filter
+        const params = new URLSearchParams();
+        params.set("page", String(pagination.page));
+        params.set("limit", String(pagination.limit));
+
+        if (filters.status !== "all") params.set("status", filters.status);
+        if (filters.priority !== "all") params.set("priority", filters.priority);
+        if (filters.onlyMine) {
+          params.set("assignee", currentUser);
+        } else if (filters.agent !== "all") {
+          params.set("assignee", filters.agent);
+        }
+        if (filters.q) params.set("search", filters.q);
+
+        const url = `${apiBase}/api/tickets?${params.toString()}`;
 
         const res = await fetch(url, {
           headers: getAuthHeaders(),
@@ -141,7 +154,7 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
     return () => {
       mounted = false;
     };
-  }, [pagination.page, pagination.limit]); // Re-fetch when page or limit changes
+  }, [pagination.page, pagination.limit, filters, currentUser]); // Re-fetch when page, limit, or filters change
 
   // Agents vom Backend laden
   useEffect(() => {
@@ -164,19 +177,8 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
     return () => { mounted = false; };
   }, []);
 
-  const filtered = useMemo(() => {
-    return tickets
-      .filter((t) => (filters.onlyMine ? t.assignee === currentUser : true))
-      .filter((t) => (filters.agent === "all" ? true : t.assignee === filters.agent))
-      .filter((t) => (filters.status === "all" ? true : t.status === filters.status))
-      .filter((t) => (filters.priority === "all" ? true : t.priority === filters.priority))
-      .filter((t) => {
-        if (!filters.q) return true;
-        const hay = `${t.id} ${t.title} ${t.description} ${t.requester} ${t.assignee ?? ""}`.toLowerCase();
-        return hay.includes(filters.q);
-      })
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [tickets, filters]);
+  // Tickets kommen bereits serverseitig gefiltert und sortiert
+  const filtered = tickets;
 
   const selected = useMemo(() => tickets.find((t) => t.id === selectedId) ?? null, [tickets, selectedId]);
 
@@ -421,7 +423,7 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
                 className="input"
                 placeholder="z.B. stichwortartig T-1002, login, maria…"
                 value={filters.q}
-                onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
+                onChange={(e) => { setFilters((f) => ({ ...f, q: e.target.value })); setPagination(p => ({ ...p, page: 1 })); }}
               />
             </label>
 
@@ -431,7 +433,7 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
                 <select
                   className="select"
                   value={filters.status}
-                  onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value as any }))}
+                  onChange={(e) => { setFilters((f) => ({ ...f, status: e.target.value as any })); setPagination(p => ({ ...p, page: 1 })); }}
                 >
                   <option value="all">Alle</option>
                   <option value="open">Open</option>
@@ -445,7 +447,7 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
                 <select
                   className="select"
                   value={filters.priority}
-                  onChange={(e) => setFilters((f) => ({ ...f, priority: e.target.value as any }))}
+                  onChange={(e) => { setFilters((f) => ({ ...f, priority: e.target.value as any })); setPagination(p => ({ ...p, page: 1 })); }}
                 >
                   <option value="all">Alle</option>
                   <option value="low">Low</option>
@@ -462,7 +464,7 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
                 <select
                   className="select"
                   value={filters.agent}
-                  onChange={(e) => setFilters((f) => ({ ...f, agent: e.target.value as any }))}
+                  onChange={(e) => { setFilters((f) => ({ ...f, agent: e.target.value as any })); setPagination(p => ({ ...p, page: 1 })); }}
                 >
                   <option value="all">Alle</option>
                   {agents.map((agent) => (
@@ -480,7 +482,7 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
                 <input
                   type="checkbox"
                   checked={filters.onlyMine}
-                  onChange={(e) => setFilters((f) => ({ ...f, onlyMine: e.target.checked }))}
+                  onChange={(e) => { setFilters((f) => ({ ...f, onlyMine: e.target.checked })); setPagination(p => ({ ...p, page: 1 })); }}
                 />
                 <span>Nur eigene Tickets (Zugewiesener Agent: = {currentUser})</span>
               </label>
@@ -488,15 +490,16 @@ function TicketApp({ currentUser, onLogout }: { currentUser: string; onLogout: (
 
             <button
               className="btn filter-reset-btn"
-              onClick={() =>
+              onClick={() => {
                 setFilters({
                   q: "",
                   status: "all",
                   priority: "all",
                   agent: "all",
                   onlyMine: false,
-                })
-              }
+                });
+                setPagination(p => ({ ...p, page: 1 }));
+              }}
             >
               Filter zurücksetzen
             </button>
@@ -773,9 +776,9 @@ function NewTicketForm(props: { onCreate: (t: any) => void; agents: string[] }) 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TicketPriority>("medium");
-  const [requester, setRequester] = useState("dev@company.com");
   const [assignee, setAssignee] = useState("");
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const requester = user?.email ?? "";
   
   // Permission checks
   const canEditPriority = hasPermission(PERMISSIONS.PRIORITY_EDIT);
@@ -846,7 +849,7 @@ function NewTicketForm(props: { onCreate: (t: any) => void; agents: string[] }) 
 
           <label className="field">
             <div className="label">Ersteller</div>
-            <input className="input" value={requester} onChange={(e) => setRequester(e.target.value)} />
+            <input className="input" value={requester} readOnly />
           </label>
         </div>
       )}
